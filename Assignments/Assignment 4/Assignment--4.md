@@ -9,49 +9,15 @@ Assignment 4
 
 ``` r
 library(tidyverse)
-```
-
-    ## ── Attaching packages ─────────────────────────────────────── tidyverse 1.3.2 ──
-    ## ✔ ggplot2 3.4.0      ✔ purrr   0.3.4 
-    ## ✔ tibble  3.1.8      ✔ dplyr   1.0.10
-    ## ✔ tidyr   1.2.1      ✔ stringr 1.4.1 
-    ## ✔ readr   2.1.3      ✔ forcats 0.5.2 
-    ## ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
-    ## ✖ dplyr::filter() masks stats::filter()
-    ## ✖ dplyr::lag()    masks stats::lag()
-
-``` r
 library(dplyr)
 library(stringr)
 library(arrow)
-```
-
-    ## 
-    ## Attaching package: 'arrow'
-    ## 
-    ## The following object is masked from 'package:utils':
-    ## 
-    ##     timestamp
-
-``` r
 library(lubridate)
-```
-
-    ## 
-    ## Attaching package: 'lubridate'
-    ## 
-    ## The following object is masked from 'package:arrow':
-    ## 
-    ##     duration
-    ## 
-    ## The following objects are masked from 'package:base':
-    ## 
-    ##     date, intersect, setdiff, union
-
-``` r
 library(zoo)
+library(ggplot2)
 ```
 
+<<<<<<< HEAD
     ## 
     ## Attaching package: 'zoo'
     ## 
@@ -72,23 +38,47 @@ person_level_data= read.csv('person_level_data.csv')
 aus=read.csv("examiner_aus.csv")
 # Get id crosswalk table
 ids=read.csv("examiner_ids.csv")
+=======
+### Load data
+```{r loading}
+# Personal level data from correction
+person_level_data= read.csv('person_level_data.csv')
+
+# Data of art unit changes
+aus=read.csv("examiner_aus.csv")
+
+# Get id crosswalk table
+ids=read.csv("examiner_ids.csv")
+
+>>>>>>> 6a8bbba9002c246e07c85ccb69d5c4e6ebf340c7
 # Get parquet data
 App_data=read_parquet('app_data_sample.parquet')
 ```
 
 ## Clean Data
 
+### Clean ids dataset
+Remove NAs:
 ``` r
+<<<<<<< HEAD
 # Clean ids dataset
 ## Remove Nas
 ids <- ids %>% 
   filter(!is.na(old_pid))
 ## Remove duplicatse in ids
+=======
+ids <- ids %>% 
+  filter(!is.na(old_pid))
+```  
+Remove duplicates in ids:
+``` r
+>>>>>>> 6a8bbba9002c246e07c85ccb69d5c4e6ebf340c7
 ids <- ids %>% 
   distinct(
     old_pid,
     .keep_all = TRUE
 )
+<<<<<<< HEAD
 # Clean parquet dataset
 App_data <- App_data %>% 
   mutate(start_date = ymd(filing_date), Status_date = as_date(dmy_hms(appl_status_date))) %>% 
@@ -99,19 +89,47 @@ App_data <- merge(App_data, person_level_data, by = 'examiner_id',all=T)
 App_data <- App_data %>% 
   filter(!is.na(examiner_id))
 # Rename tc.x to tc
+=======
+```
+### Clean parquet dataset
+``` r
+App_data <- App_data %>% 
+  mutate(start_date = ymd(filing_date), Status_date = as_date(dmy_hms(appl_status_date))) %>% 
+  filter(year(Status_date)<2018)
+```
+
+Merge the App ID and the person level data to get additional details we can bring in as needed:
+``` r
+App_data <- merge(App_data, person_level_data, by = 'examiner_id',all=T)
+```
+Clean the app dataset:
+``` r
+App_data <- App_data %>% 
+  filter(!is.na(examiner_id))
+```
+Rename tc.x to tc:
+``` r
+>>>>>>> 6a8bbba9002c246e07c85ccb69d5c4e6ebf340c7
 names(App_data)[names(App_data) == "tc.x"] <- "tc"
 ```
 
 ## Pre-process
 
+### Get the quarter number
 ``` r
 Q_data=App_data
+<<<<<<< HEAD
 # Get the quarter number
 Q_data$Quarter_Year=as.character(as.yearqtr(Q_data$Status_date))
 ```
 
 ### Create new dataset that only includes data to be used in analysis
 
+=======
+Q_data$Quarter_Year=as.character(as.yearqtr(Q_data$Status_date))
+```
+### Create new dataset that only includes data to be used in analysis
+>>>>>>> 6a8bbba9002c246e07c85ccb69d5c4e6ebf340c7
 ``` r
 Q_data_leaving <- Q_data
 Q_data <- Q_data %>% 
@@ -119,12 +137,7 @@ Q_data <- Q_data %>%
   summarise(
     num_exam = n()
     )
-```
 
-    ## `summarise()` has grouped output by 'Quarter_Year', 'tc'. You can override
-    ## using the `.groups` argument.
-
-``` r
 Q_data_leaving <- Q_data_leaving %>% 
   group_by(examiner_art_unit, examiner_id,gender) %>% 
   summarise(
@@ -132,24 +145,14 @@ Q_data_leaving <- Q_data_leaving %>%
     change_date=max(Quarter_Year),
     tc=min(tc)
     )
-```
 
-    ## `summarise()` has grouped output by 'examiner_art_unit', 'examiner_id'. You can
-    ## override using the `.groups` argument.
-
-``` r
 Q_data_leaving$t1_change_art= 1
 Q_data_leaving_merge <- Q_data_leaving %>%
   group_by(tc,gender,change_date ) %>% 
   summarise(
     leaving = sum(t1_change_art)
     )
-```
 
-    ## `summarise()` has grouped output by 'tc', 'gender'. You can override using the
-    ## `.groups` argument.
-
-``` r
 Q_data <- Q_data %>% left_join( Q_data_leaving_merge, 
         by=c('tc'='tc', 'gender'='gender','Quarter_Year'='change_date' ))
 Q_data_plot <- Q_data %>% 
@@ -161,24 +164,7 @@ Q_data_plot <- Q_data %>%
 ``` r
 #library(ggplot2)
 library(sjlabelled)
-```
 
-    ## 
-    ## Attaching package: 'sjlabelled'
-
-    ## The following object is masked from 'package:forcats':
-    ## 
-    ##     as_factor
-
-    ## The following object is masked from 'package:dplyr':
-    ## 
-    ##     as_label
-
-    ## The following object is masked from 'package:ggplot2':
-    ## 
-    ##     as_label
-
-``` r
 ggplot(Q_data , aes(x=as_factor(tc),y=num_exam,fill=gender)) +
   geom_col() +
   facet_wrap('Quarter_Year',scales='free_y')+
@@ -196,7 +182,11 @@ ggplot(Q_data , aes(x=as_factor(tc),y=num_exam,fill=gender)) +
 
 ## Demonstrate Causality Validity
 
+<<<<<<< HEAD
 Here we are analyzing the number of examiners per quarter and year.
+=======
+Here are are examining the number of examiners per quarter and year:
+>>>>>>> 6a8bbba9002c246e07c85ccb69d5c4e6ebf340c7
 
 ``` r
 for (x in 2000:2017){
@@ -212,7 +202,11 @@ print(ggplot(Q_data_temp , aes(x=as_factor(tc),y=num_exam,fill=gender)) +
 
 ![](Assignment--4_files/figure-gfm/causal%20Inference%20investigation%20by%20year-1.png)<!-- -->![](Assignment--4_files/figure-gfm/causal%20Inference%20investigation%20by%20year-2.png)<!-- -->![](Assignment--4_files/figure-gfm/causal%20Inference%20investigation%20by%20year-3.png)<!-- -->![](Assignment--4_files/figure-gfm/causal%20Inference%20investigation%20by%20year-4.png)<!-- -->![](Assignment--4_files/figure-gfm/causal%20Inference%20investigation%20by%20year-5.png)<!-- -->![](Assignment--4_files/figure-gfm/causal%20Inference%20investigation%20by%20year-6.png)<!-- -->![](Assignment--4_files/figure-gfm/causal%20Inference%20investigation%20by%20year-7.png)<!-- -->![](Assignment--4_files/figure-gfm/causal%20Inference%20investigation%20by%20year-8.png)<!-- -->![](Assignment--4_files/figure-gfm/causal%20Inference%20investigation%20by%20year-9.png)<!-- -->![](Assignment--4_files/figure-gfm/causal%20Inference%20investigation%20by%20year-10.png)<!-- -->![](Assignment--4_files/figure-gfm/causal%20Inference%20investigation%20by%20year-11.png)<!-- -->![](Assignment--4_files/figure-gfm/causal%20Inference%20investigation%20by%20year-12.png)<!-- -->![](Assignment--4_files/figure-gfm/causal%20Inference%20investigation%20by%20year-13.png)<!-- -->![](Assignment--4_files/figure-gfm/causal%20Inference%20investigation%20by%20year-14.png)<!-- -->![](Assignment--4_files/figure-gfm/causal%20Inference%20investigation%20by%20year-15.png)<!-- -->![](Assignment--4_files/figure-gfm/causal%20Inference%20investigation%20by%20year-16.png)<!-- -->![](Assignment--4_files/figure-gfm/causal%20Inference%20investigation%20by%20year-17.png)<!-- -->![](Assignment--4_files/figure-gfm/causal%20Inference%20investigation%20by%20year-18.png)<!-- -->
 
+<<<<<<< HEAD
 Here we look at the tc data based on who will leave at time t+1.
+=======
+Here we look at the tc data based on who will leave at time t+1:
+>>>>>>> 6a8bbba9002c246e07c85ccb69d5c4e6ebf340c7
 
 ``` r
 ggplot(data=Q_data_plot, aes(x=as_factor(Quarter_Year), y=leaving, shape=gender,group=interaction(as_factor(tc),gender))) +
@@ -223,16 +217,18 @@ ggplot(data=Q_data_plot, aes(x=as_factor(Quarter_Year), y=leaving, shape=gender,
   facet_wrap('tc',nrow=2)
 ```
 
-    ## Warning: Removed 14 rows containing missing values (`geom_line()`).
-
-    ## Warning: Removed 328 rows containing missing values (`geom_point()`).
-
 ![](Assignment--4_files/figure-gfm/causal%20Inference%20on%20t+1%20data-1.png)<!-- -->
 
+<<<<<<< HEAD
 ### Demonstrate Paralel Trends (Plot line graphs)
 
 We can see identical trends across all Technology Centers for the number
 of examiners per quarter.
+=======
+
+### Demonstrate Paralel Trends (Plot line graphs) 
+We can see identical trends across all Technology Centers for the number of examiners per quarter:
+>>>>>>> 6a8bbba9002c246e07c85ccb69d5c4e6ebf340c7
 
 ``` r
 ggplot(data=Q_data_plot, aes(x=as_factor(Quarter_Year), y=num_exam, shape=gender,group=interaction(as_factor(tc),gender))) +
@@ -243,8 +239,6 @@ ggplot(data=Q_data_plot, aes(x=as_factor(Quarter_Year), y=num_exam, shape=gender
         plot.title = element_text(color="black", size=14, face="bold.italic"))+
   ggtitle("Number of Examiners per TC over time broken out by gender")
 ```
-
-    ## Warning: Removed 233 rows containing missing values (`geom_point()`).
 
 ![](Assignment--4_files/figure-gfm/causal%20Inference%20plots-1.png)<!-- -->
 
@@ -259,8 +253,6 @@ ggplot(data=Q_data_plot, aes(x=as_factor(Quarter_Year), y=num_exam, shape=gender
   facet_wrap('tc',nrow=2)
 ```
 
-    ## Warning: Removed 233 rows containing missing values (`geom_point()`).
-
 ![](Assignment--4_files/figure-gfm/causal%20Inference%20plots-2.png)<!-- -->
 
 ``` r
@@ -274,14 +266,14 @@ ggplot(data=Q_data_plot, aes(x=as_factor(Quarter_Year), y=leaving, shape=gender,
   facet_wrap('tc',nrow=2)
 ```
 
-    ## Warning: Removed 14 rows containing missing values (`geom_line()`).
-
-    ## Warning: Removed 328 rows containing missing values (`geom_point()`).
-
 ![](Assignment--4_files/figure-gfm/causal%20Inference%20plots-3.png)<!-- -->
 
 ``` r
 tc_in=c(1600,2100)
+<<<<<<< HEAD
+=======
+
+>>>>>>> 6a8bbba9002c246e07c85ccb69d5c4e6ebf340c7
 Q_data_plot2 <- Q_data_plot %>% 
   filter(tc %in% tc_in)
 Q_data_plot2 <- Q_data_plot2 %>% 
@@ -307,6 +299,7 @@ ggplot(data=Q_data_plot2, aes(x=as_factor(Quarter_Year), y=leaving, shape=gender
   ggtitle("Number of Examiners in tc removed gender NAs")
 ```
 
+<<<<<<< HEAD
     ## Warning: Removed 5 rows containing missing values (`geom_line()`).
 
     ## Warning: Removed 35 rows containing missing values (`geom_point()`).
@@ -316,10 +309,18 @@ ggplot(data=Q_data_plot2, aes(x=as_factor(Quarter_Year), y=leaving, shape=gender
 ## Compare two tech centers
 
 ### Decide on two tech centers
+=======
+![](Assignment--4_files/figure-gfm/causal%20Inference%20plots-5.png)<!-- -->
 
+>>>>>>> 6a8bbba9002c246e07c85ccb69d5c4e6ebf340c7
+
+
+## Compare two tech centers
+### Decide on two tech centers
 Comparing two tech centers based on the number of examiners. We have
 chosen to examain 1600 and 2100 as these two centers demonstrate pthe
 closes paralell trends.
+
 
 ``` r
 tc_in=c(1600,2100)
@@ -334,25 +335,27 @@ ggplot(data=Q_data_plot2, aes(x=as_factor(Quarter_Year), y=num_exam, shape=gende
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1,, size=4.5),
         plot.title = element_text(color="black", size=14, face="bold.italic"))+
         ggtitle("Number of Examiners leaving in time t+1 for tc 1600 & 2100")
+<<<<<<< HEAD
+=======
+
+>>>>>>> 6a8bbba9002c246e07c85ccb69d5c4e6ebf340c7
 ```
 
 ![](Assignment--4_files/figure-gfm/causal%20Inference%20two%20centers-1.png)<!-- -->
 
 ### Analyze each chosen treatment center (summary stats)
+<<<<<<< HEAD
 
 Load additional packages:
+=======
+>>>>>>> 6a8bbba9002c246e07c85ccb69d5c4e6ebf340c7
 
+Load additional packages:
 ``` r
 library(psych)
+library(doBy)
 ```
-
-    ## 
-    ## Attaching package: 'psych'
-
-    ## The following objects are masked from 'package:ggplot2':
-    ## 
-    ##     %+%, alpha
-
+View descriptive statistics by tech center:
 ``` r
 library(doBy)
 ```
@@ -371,7 +374,6 @@ describeBy(
   Q_data_plot2,
   Q_data_plot2$tc) # grouping variable
 ```
-
     ## 
     ##  Descriptive statistics by group 
     ## group: 1600
@@ -402,6 +404,10 @@ describeBy(
     ## num_exam       1.33     1.52 190.15
     ## leaving        3.83    17.15   1.77
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 6a8bbba9002c246e07c85ccb69d5c4e6ebf340c7
 Another summary statistics by tech center and gender:
 
 ``` r
@@ -421,7 +427,10 @@ summaryBy(num_exam ~ tc + gender ,
     ## #   ³​`num_exam.3rd Qu.`, ⁴​num_exam.Max.
 
 View number of examiners per tech center and gender:
+<<<<<<< HEAD
 
+=======
+>>>>>>> 6a8bbba9002c246e07c85ccb69d5c4e6ebf340c7
 ``` r
 aggregate(cbind(num_exam) ~ tc + gender,
           data = Q_data_plot2,
@@ -435,12 +444,17 @@ aggregate(cbind(num_exam) ~ tc + gender,
     ## 4 2100   male 3407.523
 
 ### Find period of treatment / difference
+By visually examining the data, we established two possible periods of treatment.
 
+<<<<<<< HEAD
 By visually examining the data, we established two possible periods of
 treatment.
 
 Treatment date - 2003 Q1:
 
+=======
+Treatment date - 2003 Q1:
+>>>>>>> 6a8bbba9002c246e07c85ccb69d5c4e6ebf340c7
 ``` r
 ggplot(data=Q_data_plot2, aes(x=as_factor(Quarter_Year), y=num_exam, shape=gender,group=interaction(as_factor(tc),gender))) +
   geom_line(aes(color=as_factor(tc)))+
@@ -450,15 +464,20 @@ ggplot(data=Q_data_plot2, aes(x=as_factor(Quarter_Year), y=num_exam, shape=gende
       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size=4.5),
         plot.title = element_text(color="black", size=14, face="bold.italic"))+
         ggtitle("Number of in tc with predicted difference point (tc 1600 & 2100)")
+<<<<<<< HEAD
 ```
+=======
+>>>>>>> 6a8bbba9002c246e07c85ccb69d5c4e6ebf340c7
 
-    ## Warning: Using `size` aesthetic for lines was deprecated in ggplot2 3.4.0.
-    ## ℹ Please use `linewidth` instead.
+```
 
 ![](Assignment--4_files/figure-gfm/causal%20Inference%20treatment%20evaluation-1.png)<!-- -->
 
 Treatment date - 2013 Q1:
+<<<<<<< HEAD
 
+=======
+>>>>>>> 6a8bbba9002c246e07c85ccb69d5c4e6ebf340c7
 ``` r
 ggplot(data=Q_data_plot2, aes(x=as_factor(Quarter_Year), y=leaving, shape=gender,group=interaction(as_factor(tc),gender))) +
   geom_line(aes(color=as_factor(tc)))+
@@ -468,22 +487,33 @@ ggplot(data=Q_data_plot2, aes(x=as_factor(Quarter_Year), y=leaving, shape=gender
       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
         plot.title = element_text(color="black", size=14, face="bold.italic"))+
         ggtitle("Number of examiners leaving (tc 1600 & 2100)")
+<<<<<<< HEAD
+=======
+
+>>>>>>> 6a8bbba9002c246e07c85ccb69d5c4e6ebf340c7
 ```
 
-    ## Warning: Removed 5 rows containing missing values (`geom_line()`).
 
-    ## Warning: Removed 35 rows containing missing values (`geom_point()`).
-
+<<<<<<< HEAD
 ![](Assignment--4_files/figure-gfm/causal%20Inference%20treatment%20evaluation%202-1.png)<!-- -->
+=======
+![](Assignment--4_files/figure-gfm/causal%20Inference%20treatment%20evaluation-2.png)<!-- -->
+
+
+>>>>>>> 6a8bbba9002c246e07c85ccb69d5c4e6ebf340c7
 
 ## Run Causal analysis
 
 Load required package:
+<<<<<<< HEAD
 
+=======
+>>>>>>> 6a8bbba9002c246e07c85ccb69d5c4e6ebf340c7
 ``` r
 library(CausalImpact)
 ```
 
+<<<<<<< HEAD
     ## Loading required package: bsts
 
     ## Loading required package: BoomSpikeSlab
@@ -524,6 +554,13 @@ Treatment date - 2003 Q1:
 
 ``` r
 Q_data_plot_num <-Q_data_plot2[ , !names(Q_data_plot2) %in% c("leaving")]
+=======
+Treatment date - 2003 Q1:
+``` r
+Q_data_plot_num <-Q_data_plot2[ , !names(Q_data_plot2) %in% c("leaving")]
+
+
+>>>>>>> 6a8bbba9002c246e07c85ccb69d5c4e6ebf340c7
 impactdata <- Q_data_plot_num
 #impactdata$female <- ifelse(impactdata$gender == 'female', 1, 0)
 impactdata$male <- ifelse(impactdata$gender == 'male', 1, 0)
@@ -566,19 +603,35 @@ plot(impact)
 ![](Assignment--4_files/figure-gfm/running%20causal%20analysis%202-1.png)<!-- -->
 Treatment date - 2013 Q1:
 
+Treatment date - 2013 Q1:
 ``` r
 Q_data_plot_t <-Q_data_plot2[ , !names(Q_data_plot2) %in% c("num_exam")] ## works as expected 
 Q_data_plot_t <- Q_data_plot_t %>% 
   filter(!is.na(leaving))
 Q_data_plot_t <- Q_data_plot_t %>% 
   filter(!grepl("female",gender))
+<<<<<<< HEAD
 Q_data_plot_t <- Q_data_plot_t %>% 
   filter(grepl(2100,tc))
+=======
+
+
+Q_data_plot_t <- Q_data_plot_t %>% 
+  filter(grepl(2100,tc))
+
+
+>>>>>>> 6a8bbba9002c246e07c85ccb69d5c4e6ebf340c7
 Q_data_plot_t <- Q_data_plot_t %>% 
   group_by(Quarter_Year) %>% 
   summarise(
     leaving = sum(leaving)
     )
+<<<<<<< HEAD
+=======
+
+
+
+>>>>>>> 6a8bbba9002c246e07c85ccb69d5c4e6ebf340c7
 impactdata <- Q_data_plot_t[ , !names(Q_data_plot_t) %in% c("tc","gender","Quarter_Year")] ## works as expected 
 #impactdata$female <- ifelse(impactdata$gender == 'female', 1, 0)
 #impactdata$male <- ifelse(impactdata$gender == 'male', 1, 0)
@@ -588,6 +641,11 @@ pre.period <- c(1, 50)
 post.period <- c(60, 64)
 causaldata <- impactdata
 impact <- CausalImpact(causaldata, pre.period, post.period)
+<<<<<<< HEAD
+=======
+
+
+>>>>>>> 6a8bbba9002c246e07c85ccb69d5c4e6ebf340c7
 summary(impact)
 ```
 
@@ -614,3 +672,7 @@ plot(impact)
 ```
 
 ![](Assignment--4_files/figure-gfm/running%20causal%20analysis%20time-1.png)<!-- -->
+<<<<<<< HEAD
+=======
+
+>>>>>>> 6a8bbba9002c246e07c85ccb69d5c4e6ebf340c7
