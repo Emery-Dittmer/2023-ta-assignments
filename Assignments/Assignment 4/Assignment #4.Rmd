@@ -7,14 +7,14 @@ editor_options:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-
 ```
-# Pre-Processing
+# Data Cleaning and Pre-Processing
 
-## Loading Documents and Basic Packages
- 
-```{r loading}
-#load packages
+## Loading Data and Basic Packages
+
+### Load packages
+
+```{r packages}
 library(tidyverse)
 library(dplyr)
 library(stringr)
@@ -22,63 +22,60 @@ library(arrow)
 library(lubridate)
 library(zoo)
 library(ggplot2)
+```
 
-#personal level data from correction
+### Load data
+```{r loading}
+# Personal level data from correction
 person_level_data= read.csv('person_level_data.csv')
-#data of art unit changes
+# Data of art unit changes
 aus=read.csv("examiner_aus.csv")
-#get id crosswalk table
+# Get id crosswalk table
 ids=read.csv("examiner_ids.csv")
-#get parquet data
+# Get parquet data
 App_data=read_parquet('app_data_sample.parquet')
-
-
-
 ```
 
 ## Clean Data
 ```{r cleaning the data}
-#cleaning data for ids.Remove Nas
+# Clean ids dataset
+## Remove Nas
 ids <- ids %>% 
   filter(!is.na(old_pid))
-
-#remove duplicatse in ids
+## Remove duplicatse in ids
 ids <- ids %>% 
   distinct(
     old_pid,
     .keep_all = TRUE
 )
-#clean the parquet dataset
+# Clean parquet dataset
 App_data <- App_data %>% 
   mutate(start_date = ymd(filing_date), Status_date = as_date(dmy_hms(appl_status_date))) %>% 
   filter(year(Status_date)<2018)
-
-#Merge the App ID and the person level data to get additional details we can bring in as needed
+# Merge the App ID and the person level data to get additional details we can bring in as needed
 App_data <- merge(App_data, person_level_data, by = 'examiner_id',all=T)
-# clean the dataset
+# Clean the app dataset
 App_data <- App_data %>% 
   filter(!is.na(examiner_id))
-#rename tc.x to tc
+# Rename tc.x to tc
 names(App_data)[names(App_data) == "tc.x"] <- "tc"
-
 ```
 
 ## Pre-process
-```{r pre-preocess quarterly data}
-
+```{r pre-process quarterly data 1}
 Q_data=App_data
-#get the quarter number
+# Get the quarter number
 Q_data$Quarter_Year=as.character(as.yearqtr(Q_data$Status_date))
+```
+### Create new dataset that only includes data to be used in analysis
 
+```{r pre-process quarterly data 2}
 Q_data_leaving <- Q_data
-
 Q_data <- Q_data %>% 
   group_by(Quarter_Year,tc,gender) %>% 
   summarise(
     num_exam = n()
     )
-
-
 Q_data_leaving <- Q_data_leaving %>% 
   group_by(examiner_art_unit, examiner_id,gender) %>% 
   summarise(
@@ -86,27 +83,22 @@ Q_data_leaving <- Q_data_leaving %>%
     change_date=max(Quarter_Year),
     tc=min(tc)
     )
-
 Q_data_leaving$t1_change_art= 1
-
 Q_data_leaving_merge <- Q_data_leaving %>%
   group_by(tc,gender,change_date ) %>% 
   summarise(
     leaving = sum(t1_change_art)
     )
-
 Q_data <- Q_data %>% left_join( Q_data_leaving_merge, 
         by=c('tc'='tc', 'gender'='gender','Quarter_Year'='change_date' ))
-
 Q_data_plot <- Q_data %>% 
   filter(!grepl("2017",Quarter_Year))
-
 ```
 
-## Use Quarterly Data to Get Number of Examiners per Technology Centers 
+### Use Quarterly Data to Get Number of Examiners per Technology Centers 
 
-```{r feature eng quarterly data}
-library(ggplot2)
+```{r feature eng quarterly data 3}
+#library(ggplot2)
 library(sjlabelled)
 ggplot(Q_data , aes(x=as_factor(tc),y=num_exam,fill=gender)) +
   geom_col() +
@@ -114,16 +106,14 @@ ggplot(Q_data , aes(x=as_factor(tc),y=num_exam,fill=gender)) +
   xlab("Technology Center")
   #expand_limits(y=c(0.0, 50.0))
   #scale_y_continuous(expand = expansion(c(0, 1)))
-
-
 ```
 
 # Casual Inference
+
 ## Demonstrate Causality Validity
-Here are are examining the number of examiners per quarter and year
+Here we are analyzing the number of examiners per quarter and year.
 
 ```{r causal Inference investigation by year}
-
 for (x in 2000:2017){
 Q_data_temp <- Q_data %>% 
   filter(grepl(as.character(x),Quarter_Year))
@@ -135,7 +125,7 @@ print(ggplot(Q_data_temp , aes(x=as_factor(tc),y=num_exam,fill=gender)) +
 }
 ```
 
-Here we look at the tc data based on who will leave at time t+1
+Here we look at the tc data based on who will leave at time t+1.
 ```{r causal Inference on t+1 data}
 ggplot(data=Q_data_plot, aes(x=as_factor(Quarter_Year), y=leaving, shape=gender,group=interaction(as_factor(tc),gender))) +
   geom_line(aes(color=as_factor(tc)))+
@@ -147,10 +137,10 @@ ggplot(data=Q_data_plot, aes(x=as_factor(Quarter_Year), y=leaving, shape=gender,
 
 
 
-###Demonstrate Paralel Trends (Plot line graphs)
+### Demonstrate Paralel Trends (Plot line graphs)
 We can see identical trends across all Technology Centers for the number of examiners per quarter.
-```{r causal Inference plots}
 
+```{r causal Inference plots}
 ggplot(data=Q_data_plot, aes(x=as_factor(Quarter_Year), y=num_exam, shape=gender,group=interaction(as_factor(tc),gender))) +
   geom_line(aes(color=as_factor(tc)))+
   scale_color_manual(values=c("#FFA500", "#009900", "#3366FF","#FF0000","#000000","#000000"))+
@@ -158,8 +148,6 @@ ggplot(data=Q_data_plot, aes(x=as_factor(Quarter_Year), y=num_exam, shape=gender
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size=4.5),
         plot.title = element_text(color="black", size=14, face="bold.italic"))+
   ggtitle("Number of Examiners per TC over time broken out by gender")
-
-
 ggplot(data=Q_data_plot, aes(x=as_factor(Quarter_Year), y=num_exam, shape=gender,group=interaction(as_factor(tc),gender))) +
   geom_line(aes(color=as_factor(tc)))+
   scale_color_manual(values=c("#FFA500", "#009900", "#3366FF","#FF0000","#000000","#000000"))+
@@ -168,7 +156,6 @@ ggplot(data=Q_data_plot, aes(x=as_factor(Quarter_Year), y=num_exam, shape=gender
         plot.title = element_text(color="black", size=14, face="bold.italic"))+
   ggtitle("Number of Examiners per TC over time broken out by gender with data cleaning for non-assigned examiners")+
   facet_wrap('tc',nrow=2)
-
 ggplot(data=Q_data_plot, aes(x=as_factor(Quarter_Year), y=leaving, shape=gender,group=interaction(as_factor(tc),gender))) +
   geom_line(aes(color=as_factor(tc)))+
   scale_color_manual(values=c("#FFA500", "#009900", "#3366FF","#FF0000","#000000","#000000"))+
@@ -177,82 +164,81 @@ ggplot(data=Q_data_plot, aes(x=as_factor(Quarter_Year), y=leaving, shape=gender,
         plot.title = element_text(color="black", size=14, face="bold.italic"))+
   ggtitle("Number of Examiners that will be leaving at time t+1")+
   facet_wrap('tc',nrow=2)
-
-
-tc_in=c(1700,2400)
-
+tc_in=c(1600,2100)
 Q_data_plot2 <- Q_data_plot %>% 
   filter(tc %in% tc_in)
 Q_data_plot2 <- Q_data_plot2 %>% 
   filter(!is.na(gender))
-
-
 ggplot(data=Q_data_plot2, aes(x=as_factor(Quarter_Year), y=num_exam, shape=gender,group=interaction(as_factor(tc),gender))) +
   geom_line(aes(color=as_factor(tc)))+
   scale_color_manual(values=c("#FFA500", "#009900", "#3366FF","#FF0000","#000000","#000000"))+
   geom_point(alpha=3/10)+ 
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size=4.5),
         plot.title = element_text(color="black", size=14, face="bold.italic"))+
-  ggtitle("Number of Examiners over time in tc 1700 & 2400")
-
+  ggtitle("Number of Examiners over time in tc 1600 & 2100")
 ggplot(data=Q_data_plot2, aes(x=as_factor(Quarter_Year), y=leaving, shape=gender,group=interaction(as_factor(tc),gender))) +
   geom_line(aes(color=as_factor(tc)))+
   scale_color_manual(values=c("#FFA500", "#009900", "#3366FF","#FF0000","#000000","#000000"))+
   geom_point(alpha=3/10)+ 
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size=4.5),
         plot.title = element_text(color="black", size=14, face="bold.italic"))+
-  ggtitle("Number of Examiners in tc removed gender nas")
-
+  ggtitle("Number of Examiners in tc removed gender NAs")
 ```
 
+## Compare two tech centers
 
-#### Decide on two tech centers
+
+### Decide on two tech centers
 Comparing two tech centers based on the number of examiners.
 We have chosen to examain 1600 and 2100 as these two centers demonstrate pthe closes paralell trends.
+
 ```{r causal Inference two centers}
-
 tc_in=c(1600,2100)
-
 Q_data_plot2 <- Q_data_plot %>% 
   filter(tc %in% tc_in)
 Q_data_plot2 <- Q_data_plot2 %>% 
   filter(!is.na(gender))
-
-
 ggplot(data=Q_data_plot2, aes(x=as_factor(Quarter_Year), y=num_exam, shape=gender,group=interaction(as_factor(tc),gender))) +
   geom_line(aes(color=as_factor(tc)))+
   scale_color_manual(values=c("#FFA500", "#009900", "#3366FF","#FF0000","#000000","#000000"))+
   geom_point(alpha=3/10)+ 
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1,, size=4.5),
         plot.title = element_text(color="black", size=14, face="bold.italic"))+
-  ggtitle("Number of Examiners leaving in time t+1 for tc 1600 & 2400")
-
+        ggtitle("Number of Examiners leaving in time t+1 for tc 1600 & 2100")
 ```
 
 
-#### Analyse each treatment center (summary stats)
-
-```{r causal Inference summary stats}
-
+### Analyze each chosen treatment center (summary stats)
+Load additional packages:
+```{r causal Inference summary stats packages}
 library(psych)
+library(doBy)
+```
+View descriptive statistics by tech center:
+```{r causal Inference summary stats descriptive}
 describeBy(
   Q_data_plot2,
   Q_data_plot2$tc) # grouping variable
-
-library(doBy)
+```
+Another summary statistics by tech center and gender:
+```{r causal Inference summary stats descriptve 2}
 summaryBy(num_exam ~ tc + gender ,
           data = Q_data_plot2,
           FUN = summary)
+```
 
+View number of examiners per tech center and gender:
+```{r causal Inference summary stats 3}
 aggregate(cbind(num_exam) ~ tc + gender,
           data = Q_data_plot2,
           mean)
-
 ```
 
 ### Find period of treatment / difference
-```{r causal Inference treatment evaluation}
+By visually examining the data, we established two possible periods of treatment.
 
+Treatment date - 2003 Q1:
+```{r causal Inference treatment evaluation}
 ggplot(data=Q_data_plot2, aes(x=as_factor(Quarter_Year), y=num_exam, shape=gender,group=interaction(as_factor(tc),gender))) +
   geom_line(aes(color=as_factor(tc)))+
   scale_color_manual(values=c("#FFA500", "#009900", "#3366FF","#FF0000","#000000","#000000"))+
@@ -260,9 +246,12 @@ ggplot(data=Q_data_plot2, aes(x=as_factor(Quarter_Year), y=num_exam, shape=gende
    geom_vline(xintercept = "2003 Q1", linetype="dotted", color = "blue", size=1.5)+
       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size=4.5),
         plot.title = element_text(color="black", size=14, face="bold.italic"))+
-  ggtitle("Number of in tc with predicted difference point (tc 1600 & 2400)")
- 
+        ggtitle("Number of in tc with predicted difference point (tc 1600 & 2100)")
+```
 
+ 
+Treatment date - 2013 Q1:
+```{r causal Inference treatment evaluation 2}
 ggplot(data=Q_data_plot2, aes(x=as_factor(Quarter_Year), y=leaving, shape=gender,group=interaction(as_factor(tc),gender))) +
   geom_line(aes(color=as_factor(tc)))+
   scale_color_manual(values=c("#FFA500", "#009900", "#3366FF","#FF0000","#000000","#000000"))+
@@ -270,99 +259,60 @@ ggplot(data=Q_data_plot2, aes(x=as_factor(Quarter_Year), y=leaving, shape=gender
    geom_vline(xintercept = "2013 Q1", linetype="dotted", color = "blue", size=1.5)+
       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
         plot.title = element_text(color="black", size=14, face="bold.italic"))+
-  ggtitle("Number of examiners leaving (tc 1600 & 2400)")
+        ggtitle("Number of examiners leaving (tc 1600 & 2100)")
  
-
 ```
 
-### Run some PCA on data set (should demonstrate main components not any direction/ co-linear assumptions)
-
-### Run decsion tree analysis (to help understand logistic regression)
-```{r running causal analysis}
-#
-
-
-```
 
 ## Run Causal analysis
-```{r running causal analysis 2 }
+Load required package:
+```{r running causal analysis 1 }
 library(CausalImpact)
-Q_data_plot_num <-Q_data_plot2[ , !names(Q_data_plot2) %in% c("leaving")] ## works as expected 
-
-
+```
+Treatment date - 2003 Q1:
+```{r running causal analysis 2 }
+Q_data_plot_num <-Q_data_plot2[ , !names(Q_data_plot2) %in% c("leaving")]
 impactdata <- Q_data_plot_num
 #impactdata$female <- ifelse(impactdata$gender == 'female', 1, 0)
 impactdata$male <- ifelse(impactdata$gender == 'male', 1, 0)
 #impactdata$tc_1600 <- ifelse(impactdata$tc == '1600', 1, 0)
 #impactdata$tc_2100 <- ifelse(impactdata$tc == '2100', 1, 0)
-
 impactdata <- impactdata %>% 
   group_by(Quarter_Year) %>% 
   summarise(
     num_exam = sum(num_exam)
     )
-
-
 pre.period <- c(1, 15)
 post.period <- c(30, 67)
-
 causaldata <- impactdata[,2]
-
 impact <- CausalImpact(causaldata, pre.period, post.period)
-
 summary(impact)
-
 plot(impact)
 ```
-
+Treatment date - 2013 Q1:
 ```{r running causal analysis time}
 Q_data_plot_t <-Q_data_plot2[ , !names(Q_data_plot2) %in% c("num_exam")] ## works as expected 
-
-
-
 Q_data_plot_t <- Q_data_plot_t %>% 
   filter(!is.na(leaving))
-
 Q_data_plot_t <- Q_data_plot_t %>% 
   filter(!grepl("female",gender))
-
 Q_data_plot_t <- Q_data_plot_t %>% 
   filter(grepl(2100,tc))
-
 Q_data_plot_t <- Q_data_plot_t %>% 
   group_by(Quarter_Year) %>% 
   summarise(
     leaving = sum(leaving)
     )
-
-
 impactdata <- Q_data_plot_t[ , !names(Q_data_plot_t) %in% c("tc","gender","Quarter_Year")] ## works as expected 
-
 #impactdata$female <- ifelse(impactdata$gender == 'female', 1, 0)
 #impactdata$male <- ifelse(impactdata$gender == 'male', 1, 0)
 #impactdata$tc_1600 <- ifelse(impactdata$tc == '1600', 1, 0)
 #impactdata$tc_2100 <- ifelse(impactdata$tc == '2100', 1, 0)
-
-
 pre.period <- c(1, 50)
 post.period <- c(60, 64)
-
 causaldata <- impactdata
-
-
 impact <- CausalImpact(causaldata, pre.period, post.period)
-
 summary(impact)
-
 plot(impact)
 ```
 
-### Interpret results
-```{r result interpretation}
-
-```
-
-## Itterate/refine variables (if we have time)
-```{r refining variables}
-
-```
