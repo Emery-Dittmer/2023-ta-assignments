@@ -1,0 +1,135 @@
+---
+title: "Exercise 4"
+output: github_document
+---
+
+```{r setup-1, include=FALSE}
+rm(list = ls()) # clear memory, step 1
+gc() # clear memory, step 2
+knitr::opts_chunk$set(echo = TRUE)
+# load the necessary packages ("extensions")
+library(tidyverse)
+library(arrow)
+library(lubridate)
+```
+
+## Setting up data and environment
+
+We first need to do a few things before we can manipulate the data. 
+```{r setup-2}
+# set path for R to find our data
+#data_path = "~/Dropbox/McGill/teaching/2022-2023/ORGB671/data/"
+```
+
+### Load data saved in exercise 2
+
+We'll load application data with the additional fields for gender, race and tenure.
+
+```{r load-data}
+app_data <- read_parquet("apps_gender_rate.parquet")
+```
+
+## Objectives
+
+### 1. Research how the composition of and art unit at time *t* affects likelihood of examiner transition to another art unit at time *t+1*
+  + Consider different aspects of the composition: size, gender ratio, race representation, seniority distribution of peers
+  + Optionally, consider different (heterogeneous) effects by focal examiner’s gender, race and seniority
+  + Clearly explain your causal model, the assumptions it depends on and the limitations of your inference
+
+#### Identify movers and years when they move
+
+We'll aggregate art units data on annual level for each examiner, to flag when they move.
+
+```{r movers}
+movers <- app_data |> 
+  mutate(
+    app_year = year(filing_date),
+    ) |>  
+  group_by(examiner_id, app_year) |> 
+  summarise(examiner_art_unit = min(examiner_art_unit, na.rm = TRUE)) |> # eliminate duplicates
+  arrange(examiner_id, app_year, examiner_art_unit) |> # sort for lag()
+  group_by(examiner_id) |> 
+  mutate(moved_aus = if_else(examiner_art_unit!=lag(examiner_art_unit),1,0)) |>
+  mutate(moved_aus = if_else(is.na(moved_aus) & app_year==min(app_year),0,moved_aus)) #fixing NAs in examiner's first year
+  
+movers
+# check the distribution of number of moves
+movers |> group_by(examiner_id) |> summarise(total_moves = sum(moved_aus, na.rm = TRUE)) |> count(total_moves)
+```
+It looks like some people are moving almost every year. This is unlikely to reflect actual underlying process and more likely results from some data noise: for example, art unit may have been split into two, and applications got reclassified retrospectively. In any case, it's unlikely to be useful information for us.
+
+To address this problem in a way that keeps the information in the data but doesn't include those records in the estimations, let's define an estimation sample indicator `est_sample`. We'll only include those who didn't move for at least three years.
+
+```{r est_sample}
+movers <- movers |> 
+  group_by(examiner_id) |> 
+  mutate(
+    est_sample = if_else(n() - sum(moved_aus)>2,1,0)
+    )
+movers
+movers |> ungroup() |> count(est_sample) |> mutate(pct = n/sum(n))
+```
+
+#### Create art units dataset
+
+Because we'll be using characteristics of each art unit as predictors, let's calculate them first, for each art unit in each year. For brevity, we'll just consider gender. The same code can be extended to include race, seniority, etc.
+
+```{r au-data}
+au_data <- app_data |> 
+  mutate(
+    app_year = year(filing_date),
+    examiner_male = if_else(gender == "male",1,0),
+    examiner_female = if_else(gender == "female",1,0),
+    ) |> 
+  group_by(examiner_art_unit, app_year) |> 
+  distinct(examiner_id, .keep_all = TRUE) |> 
+  summarise(
+    au_size = n(),
+    au_nfemale = sum(examiner_female, na.rm = TRUE),
+    au_nmale = sum(examiner_male, na.rm = TRUE)
+            )
+au_data
+```
+We are getting very small art unit sizes for some AU-year cells. For now, let's only consider art units with 5 or more examiners.
+
+```{r filter-AUs}
+au_data <- au_data |> 
+  filter(au_size>=5)
+au_data
+```
+#### Estimate regressions
+
+Let's join the art unit information to our individual-level panel and estimate the correlations between art unit size, share of women and moves. Note that we need to have lagged values as predictors. We could either "shift" all predictors (like art unit size) forward in time, or our outcome (move indicator) back in time for one year. It's easier to do the latter, so we'll create a "will_move" indicator for year *t* that will be equal to 1 if the examiner moves next year (at *t+1*).
+
+```{r prepare-sample}
+reg_sample <- movers |> 
+  filter(est_sample==1) |> 
+  left_join(au_data) |> 
+  select(-est_sample) |> 
+  group_by(examiner_id) |> 
+  mutate(
+    will_move = if_else(lead(moved_aus)==1,1,0),
+    share_female = au_nfemale / au_size, # we'll use this below
+    ) |> 
+  ungroup()
+reg_sample
+```
+
+Note that we'll be automatically dropping the last observation for each examiner, because `will_move` indicator is set to NA for last observed year. 
+
+Let's run some regressions. We'll start with a linear probability model (LMP) that is simply an OLS with a binary outcome. It's robust enough for rough estimations, although a better model to use would be logit.
+
+```{r regressions1}
+library(modelsummary)
+models <- list()
+models[['m1']] <- lm(will_move ~ 1 + au_size, data = reg_sample) 
+models[['m2']] <- lm(will_move ~ 1 + au_size + share_female, 
+         data = reg_sample) 
+modelsummary(models)
+```
+
+
+### 2. Find a factor that may be considered exogenous (i.e., random) and improve your inference
+  + Use Diff-in-diff or IV, as you wish
+  + Clearly explain the logic of your research design
+  + Hints: other people’s moves may be exogenous; workload may be exogenous; types of applicants are exogenous because of random assignment of applications to examiners
