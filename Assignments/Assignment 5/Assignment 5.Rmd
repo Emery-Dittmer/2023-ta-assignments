@@ -45,7 +45,7 @@ App_data <- App_data %>%
 
 # Clean Date format
 #get the date format cleaned
-App_data$Date_time=as.POSIXct(App_data$appl_status_date, format="%d%b%Y %H:%M:%S")
+App_data$Date_time=as.POSIXct(App_data$appl_status_date, format="%d%b%Y")
 #get the quarter number
 App_data$Quarter_Year=as.character(yearquarter(App_data$Date_time))
 #get the week number
@@ -63,9 +63,9 @@ unique(App_data$disposal_type)
 #create new data fame with all manipulations. App_Data held as clean data
 T_Data=App_data
 
-#remove all values before 2018
+#remove all values after 2018
 T_Data <- T_Data %>% 
-  filter(Date_time< as.Date("2018-01-01"))
+  filter(Date_time> as.Date("2018-01-01"))
 
 
 
