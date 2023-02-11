@@ -1,4 +1,4 @@
-Assignment \#5
+Assignment 5
 ================
 
 # Data Cleaning and Pre-Processing
@@ -275,12 +275,12 @@ tail(forecast[c('ds', 'yhat', 'yhat_lower', 'yhat_upper')])
 ```
 
     ##              ds     yhat yhat_lower yhat_upper
-    ## 1225 2017-12-21 4170.108   3830.856   4498.311
-    ## 1226 2017-12-22 4216.971   3892.450   4547.611
-    ## 1227 2017-12-23 4193.634   3902.551   4497.340
-    ## 1228 2017-12-24 4173.281   3846.356   4498.423
-    ## 1229 2017-12-25 4099.485   3781.048   4423.226
-    ## 1230 2017-12-26 4067.710   3739.748   4386.015
+    ## 1225 2017-12-21 4170.108   3829.880   4466.407
+    ## 1226 2017-12-22 4216.971   3907.249   4531.800
+    ## 1227 2017-12-23 4193.634   3914.161   4514.494
+    ## 1228 2017-12-24 4173.281   3843.067   4474.159
+    ## 1229 2017-12-25 4099.485   3775.605   4417.943
+    ## 1230 2017-12-26 4067.710   3751.853   4388.573
 
 It looks like we are predicting between 3,600 and 4,300 applications per
 week in end of 2017. This is not accounting for hollidays, which we will
@@ -455,7 +455,7 @@ We can also take a look at the model evaluation
 
 ``` r
 actuals <- GN_Data_Test$y
-predictions <- forecast[1:25, "yhat"]
+predictions <- tail(forecast$yhat,26)
 
 MAE <- mean(abs(actuals - predictions))
 ```
@@ -485,25 +485,25 @@ MAPE <- mean(abs(actuals - predictions) / actuals)
 print(MAE)
 ```
 
-    ## [1] 3454.522
+    ## [1] 962.8091
 
 ``` r
 print(MSE)
 ```
 
-    ## [1] 14292911
+    ## [1] 2872742
 
 ``` r
 print(RMSE)
 ```
 
-    ## [1] 3780.597
+    ## [1] 1694.917
 
 ``` r
 print(MAPE)
 ```
 
-    ## [1] 8.528934
+    ## [1] 508.7466
 
 ## 2016 data
 
@@ -601,10 +601,16 @@ m<-prophet(GN_Data_Train, holidays = holidays)
 future <- make_future_dataframe(m, periods = 365)
 forecast <- predict(m, future)
 
-prophet_plot_components(m, forecast)
+plot(m,forecast)
 ```
 
 ![](Assignment-5_files/figure-gfm/prediction%202016%20holliday-1.png)<!-- -->
+
+``` r
+prophet_plot_components(m, forecast)
+```
+
+![](Assignment-5_files/figure-gfm/plotting%202016%20features-1.png)<!-- -->
 
 ``` r
 ggplot(forecast, aes(ds, yhat)) +
@@ -651,3 +657,142 @@ print(MAPE)
 ```
 
     ## [1] 0.09021357
+
+## Gender Data with 2016 Assumptions
+
+Lets first clean up the data
+
+``` r
+fdate="2016-01-01"
+edate="2017-01-01"
+F_Data_Train <- F_Data %>%
+  filter(ds< as.Date(fdate))
+
+F_Data_Test <- F_Data %>%
+  filter(ds>= as.Date(fdate))
+
+F_Data_Test <- F_Data_Test %>%
+  filter(ds<= as.Date(edate))
+
+
+M_Data_Train <- M_Data %>%
+  filter(ds< as.Date(fdate))
+
+M_Data_Test <- M_Data %>%
+  filter(ds>= as.Date(fdate))
+
+M_Data_Test <- M_Data_Test %>%
+  filter(ds<= as.Date(edate))
+```
+
+``` r
+m_F<-prophet(F_Data_Train)
+```
+
+    ## Disabling daily seasonality. Run prophet with daily.seasonality=TRUE to override this.
+
+``` r
+future <- make_future_dataframe(m_F, periods = 365)
+forecast_F <- predict(m_F, future)
+plot(m_F,forecast_F)
+```
+
+    ## Adding missing grouping variables: `Week_Year`
+
+![](Assignment-5_files/figure-gfm/Femal%20prediction-1.png)<!-- -->
+
+``` r
+m_M<-prophet(M_Data_Train)
+```
+
+    ## Disabling daily seasonality. Run prophet with daily.seasonality=TRUE to override this.
+
+``` r
+future <- make_future_dataframe(m_M, periods = 365)
+forecast_M <- predict(m_M, future)
+plot(m_M,forecast_M)
+```
+
+    ## Adding missing grouping variables: `Week_Year`
+
+![](Assignment-5_files/figure-gfm/Male%20prediction-1.png)<!-- -->
+
+``` r
+ggplot(forecast, aes(ds, yhat)) +
+  geom_ribbon(data = forecast_F,aes(ymin=yhat_lower,ymax=yhat_upper), alpha=0.4, color = "lightpink")+
+  geom_ribbon(data = forecast_M,aes(ymin=yhat_lower,ymax=yhat_upper), alpha=0.4, color = "lightblue")+
+  geom_point(data = F_Data_Train, aes(ds, y, color = "train data Femal"), size = 2, alpha=.2) +
+  geom_point(data = F_Data_Test, aes(ds, y, color = "test data Female"), size = 2, alpha=.2) +
+  geom_point(data = M_Data_Train, aes(ds, y, color = "train data Male"), size = 2,alpha=.2) +
+  geom_point(data = M_Data_Test, aes(ds, y, color = "test data Male"), size = 2,alpha=.2) +
+  scale_color_manual(values = c("magenta", "darkblue","pink2","lightblue3","black"), labels = c("Test Data Female", "Test data Male", "Training Data Female", "Test Data Female")) +
+  xlab("Date") +
+  ylab("y") +
+  ggtitle("Forecast with Actual Data Points")
+```
+
+![](Assignment-5_files/figure-gfm/prediction%20with%20gender-1.png)<!-- -->
+
+``` r
+actuals <- M_Data_Test$y
+predictions <- tail(forecast_M$yhat,52)
+
+MAE <- mean(abs(actuals - predictions))
+MSE <- mean((actuals - predictions)^2)
+RMSE <- sqrt(MSE)
+MAPE <- mean(abs(actuals - predictions) / actuals)
+
+print(MAE)
+```
+
+    ## [1] 163.5717
+
+``` r
+print(MSE)
+```
+
+    ## [1] 49651.33
+
+``` r
+print(RMSE)
+```
+
+    ## [1] 222.8258
+
+``` r
+print(MAPE)
+```
+
+    ## [1] 0.07885049
+
+``` r
+actuals <- F_Data_Test$y
+predictions <- tail(forecast_F$yhat,52)
+
+MAE <- mean(abs(actuals - predictions))
+MSE <- mean((actuals - predictions)^2)
+RMSE <- sqrt(MSE)
+MAPE <- mean(abs(actuals - predictions) / actuals)
+
+print(MAE)
+```
+
+    ## [1] 86.56987
+
+``` r
+print(MSE)
+```
+
+    ## [1] 13151.12
+
+``` r
+print(RMSE)
+```
+
+    ## [1] 114.6783
+
+``` r
+print(MAPE)
+```
+
+    ## [1] 0.09061592
