@@ -275,12 +275,12 @@ tail(forecast[c('ds', 'yhat', 'yhat_lower', 'yhat_upper')])
 ```
 
     ##              ds     yhat yhat_lower yhat_upper
-    ## 1225 2017-12-21 4170.108   3829.880   4466.407
-    ## 1226 2017-12-22 4216.971   3907.249   4531.800
-    ## 1227 2017-12-23 4193.634   3914.161   4514.494
-    ## 1228 2017-12-24 4173.281   3843.067   4474.159
-    ## 1229 2017-12-25 4099.485   3775.605   4417.943
-    ## 1230 2017-12-26 4067.710   3751.853   4388.573
+    ## 1225 2017-12-21 4170.108   3854.940   4472.199
+    ## 1226 2017-12-22 4216.971   3895.583   4535.210
+    ## 1227 2017-12-23 4193.634   3874.054   4518.062
+    ## 1228 2017-12-24 4173.281   3859.361   4499.659
+    ## 1229 2017-12-25 4099.485   3775.984   4400.115
+    ## 1230 2017-12-26 4067.710   3749.340   4391.562
 
 It looks like we are predicting between 3,600 and 4,300 applications per
 week in end of 2017. This is not accounting for hollidays, which we will
@@ -686,7 +686,7 @@ M_Data_Test <- M_Data_Test %>%
 ```
 
 ``` r
-m_F<-prophet(F_Data_Train)
+m_F<-prophet(F_Data_Train,holidays=holidays)
 ```
 
     ## Disabling daily seasonality. Run prophet with daily.seasonality=TRUE to override this.
@@ -702,7 +702,7 @@ plot(m_F,forecast_F)
 ![](Assignment-5_files/figure-gfm/Femal%20prediction-1.png)<!-- -->
 
 ``` r
-m_M<-prophet(M_Data_Train)
+m_M<-prophet(M_Data_Train ,holidays=holidays)
 ```
 
     ## Disabling daily seasonality. Run prophet with daily.seasonality=TRUE to override this.
@@ -745,25 +745,25 @@ MAPE <- mean(abs(actuals - predictions) / actuals)
 print(MAE)
 ```
 
-    ## [1] 163.5717
+    ## [1] 164.1063
 
 ``` r
 print(MSE)
 ```
 
-    ## [1] 49651.33
+    ## [1] 48468.04
 
 ``` r
 print(RMSE)
 ```
 
-    ## [1] 222.8258
+    ## [1] 220.1546
 
 ``` r
 print(MAPE)
 ```
 
-    ## [1] 0.07885049
+    ## [1] 0.07886121
 
 ``` r
 actuals <- F_Data_Test$y
@@ -777,22 +777,22 @@ MAPE <- mean(abs(actuals - predictions) / actuals)
 print(MAE)
 ```
 
-    ## [1] 86.56987
+    ## [1] 88.31198
 
 ``` r
 print(MSE)
 ```
 
-    ## [1] 13151.12
+    ## [1] 13213.5
 
 ``` r
 print(RMSE)
 ```
 
-    ## [1] 114.6783
+    ## [1] 114.95
 
 ``` r
 print(MAPE)
 ```
 
-    ## [1] 0.09061592
+    ## [1] 0.09214144
