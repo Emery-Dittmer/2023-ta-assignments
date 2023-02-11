@@ -1,5 +1,5 @@
 ---
-title: "Untitled"
+title: "Assignment #5"
 output: github_document
 ---
 
@@ -63,13 +63,18 @@ unique(App_data$disposal_type)
 #create new data fame with all manipulations. App_Data held as clean data
 T_Data=App_data
 
-#remove all values after 2018
+#remove all values before 2018
 T_Data <- T_Data %>% 
-  filter(Date_time> as.Date("2018-01-01"))
+  filter(Date_time<= as.Date("2018-01-01"))
 
 
 
 #Remove all the data we will not need based on application status
+exclude_list=c("PEND")
+T_Data <- T_Data %>%
+  filter(!disposal_type %in% exclude_list)
+
+#Remove all the date data that we will not need based on weeknum
 exclude_list=c("PEND")
 T_Data <- T_Data %>%
   filter(!disposal_type %in% exclude_list)
@@ -100,7 +105,7 @@ GN_Data <- T_Data %>%
 G_Data <- T_Data %>% 
   group_by(Week_Year,gender) %>% 
   summarise(
-    ds = min(Date_time),
+    ds = min(Date_time), # I have repeatedly attempted to change this assumption but have been unable to
     y=n(),
     )
 
@@ -163,12 +168,52 @@ It looks like we are predicting between 3,600 and 4,300 applications per week in
 ```{r prediction 3}
 plot(m, forecast)
 ```
-
+We can look at the key feautres effecting the model
 ```{r prediction 4}
 prophet_plot_components(m, forecast)
+
+```
+and then visualize the predictions!
+
+```{r plot 2017 no holliday}
+# Plot the prophet forecast with the test data points
+ggplot(forecast, aes(ds, yhat)) +
+  geom_ribbon(data = forecast,aes(ymin=yhat_lower,ymax=yhat_upper), alpha=0.1, color = "grey71")+
+  geom_point(data = GN_Data_Train, aes(ds, y, color = "train data"), size = 2) +
+  geom_point(data = GN_Data_Test, aes(ds, y, color = "test data"), size = 2) +
+  geom_line(aes(color = "prophet forecast")) +
+  scale_color_manual(values = c("blue", "red", "black"), labels = c("Forecast", "Test data", "Train data")) +
+  xlab("Date") +
+  ylab("y") +
+  ggtitle("Forecast with Actual Data Points")
 ```
 
-Let's account for US publich Hollidays based on: https://www.commerce.gov/hr/employees/leave/holidays
+We can also take a look at the model evaluation
+
+```{r prediction 2017 eval}
+actuals <- GN_Data_Test$y
+predictions <- tail(forecast$yhat,26)
+
+MAE <- mean(abs(actuals - predictions))
+MSE <- mean((actuals - predictions)^2)
+RMSE <- sqrt(MSE)
+MAPE <- mean(abs(actuals - predictions) / actuals)
+
+print(MAE)
+print(MSE)
+print(RMSE)
+print(MAPE)
+
+
+```
+
+
+## 2017 with Hollidays
+
+The last prediction is not as clear as we could have hopped for. 
+
+So let's account for US publich Hollidays based on: 
+https://www.commerce.gov/hr/employees/leave/holidays
 https://www.kaggle.com/datasets/donnetew/us-holiday-dates-2004-2021
 
 
@@ -198,20 +243,20 @@ m<-prophet(GN_Data_Train,holidays = holidays)
 
 future <- make_future_dataframe(m, periods = 365)
 
-# BEGINNING OF CHANGED CODE
 
 forecast <- predict(m, future)
 tail(future)
 
 plot(m, forecast)
+```
 
-# Plot the prophet forecast with the test data points
-
+```{r plot the factors 2017 holliday}
+prophet_plot_components(m, forecast)
 ```
 
 
-```{r prediction 7}
-
+```{r plot prediction 2017 holliday}
+# Plot the prophet forecast with the test data points
 ggplot(forecast, aes(ds, yhat)) +
   geom_ribbon(data = forecast,aes(ymin=yhat_lower,ymax=yhat_upper), alpha=0.1, color = "grey71")+
   geom_point(data = GN_Data_Train, aes(ds, y, color = "train data"), size = 2) +
@@ -221,12 +266,137 @@ ggplot(forecast, aes(ds, yhat)) +
   xlab("Date") +
   ylab("y") +
   ggtitle("Forecast with Actual Data Points")
-```
-
-```{r prediction 8}
 
 ```
-```{r prediction 9}
+
+
+We can also take a look at the model evaluation
+
+```{r prediction 2017 holliday eval}
+actuals <- GN_Data_Test$y
+predictions <- forecast[1:25, "yhat"]
+
+MAE <- mean(abs(actuals - predictions))
+MSE <- mean((actuals - predictions)^2)
+RMSE <- sqrt(MSE)
+MAPE <- mean(abs(actuals - predictions) / actuals)
+
+print(MAE)
+print(MSE)
+print(RMSE)
+print(MAPE)
+
+
+```
+## 2016 data
+Lets try removing 2017 data and predicting 2016 data instead
+
+```{r prediction 2016}
+
+fdate="2016-01-01"
+edate="2017-01-01"
+GN_Data_Train <- GN_Data %>%
+  filter(ds< as.Date(fdate))
+
+GN_Data_Test <- GN_Data %>%
+  filter(ds>= as.Date(fdate))
+
+GN_Data_Test <- GN_Data_Test %>%
+  filter(ds<= as.Date(edate))
+
+m<-prophet(GN_Data_Train)
+future <- make_future_dataframe(m, periods = 365)
+forecast <- predict(m, future)
+plot(m,forecast)
+```
+
+```{r plot the factors 2016 holliday}
+prophet_plot_components(m, forecast)
+```
+
+
+
+```{r plot prediction 2016 holliday}
+ggplot(forecast, aes(ds, yhat)) +
+  geom_ribbon(data = forecast,aes(ymin=yhat_lower,ymax=yhat_upper), alpha=0.1, color = "grey71")+
+  geom_point(data = GN_Data_Train, aes(ds, y, color = "train data"), size = 2) +
+  geom_point(data = GN_Data_Test, aes(ds, y, color = "test data"), size = 2) +
+  geom_line(aes(color = "prophet forecast")) +
+  scale_color_manual(values = c("blue", "red", "black"), labels = c("Forecast", "Test data", "Train data")) +
+  xlab("Date") +
+  ylab("y") +
+  ggtitle("Forecast with Actual Data Points")
+
+
+```
+
+```{r model eval 2016}
+actuals <- GN_Data_Test$y
+predictions <- tail(forecast$yhat,52)
+
+MAE <- mean(abs(actuals - predictions))
+MSE <- mean((actuals - predictions)^2)
+RMSE <- sqrt(MSE)
+MAPE <- mean(abs(actuals - predictions) / actuals)
+
+
+print(MAE)
+print(MSE)
+print(RMSE)
+print(MAPE)
+
+```
+
+
+
+
+## 2016 data with hollidays
+Lets try the same day with hollodays now
+
+
+```{r prediction 2016 holliday}
+
+m<-prophet(GN_Data_Train, holidays = holidays)
+future <- make_future_dataframe(m, periods = 365)
+forecast <- predict(m, future)
+
+prophet_plot_components(m, forecast)
+
+```
+
+
+```{r 2016 prediction plot}
+ggplot(forecast, aes(ds, yhat)) +
+  geom_ribbon(data = forecast,aes(ymin=yhat_lower,ymax=yhat_upper), alpha=0.1, color = "grey71")+
+  geom_point(data = GN_Data_Train, aes(ds, y, color = "train data"), size = 2) +
+  geom_point(data = GN_Data_Test, aes(ds, y, color = "test data"), size = 2) +
+  geom_line(aes(color = "prophet forecast")) +
+  scale_color_manual(values = c("blue", "red", "black"), labels = c("Forecast", "Test data", "Train data")) +
+  xlab("Date") +
+  ylab("y") +
+  ggtitle("Forecast with Actual Data Points")
+
+```
+```{r model 2016 holliday stats}
+actuals <- GN_Data_Test$y
+predictions <- tail(forecast$yhat,52)
+
+MAE <- mean(abs(actuals - predictions))
+MSE <- mean((actuals - predictions)^2)
+RMSE <- sqrt(MSE)
+MAPE <- mean(abs(actuals - predictions) / actuals)
+
+print(MAE)
+print(MSE)
+print(RMSE)
+print(MAPE)
+
+```
+
+
+```{r}
+
+
 
 ```
 

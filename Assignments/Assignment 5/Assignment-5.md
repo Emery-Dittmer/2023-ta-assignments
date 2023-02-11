@@ -1,4 +1,4 @@
-Untitled
+Assignment \#5
 ================
 
 # Data Cleaning and Pre-Processing
@@ -100,7 +100,7 @@ App_data <- App_data %>%
 
 # Clean Date format
 #get the date format cleaned
-App_data$Date_time=as.POSIXct(App_data$appl_status_date, format="%d%b%Y %H:%M:%S")
+App_data$Date_time=as.POSIXct(App_data$appl_status_date, format="%d%b%Y")
 #get the quarter number
 App_data$Quarter_Year=as.character(yearquarter(App_data$Date_time))
 #get the week number
@@ -128,11 +128,16 @@ T_Data=App_data
 
 #remove all values before 2018
 T_Data <- T_Data %>% 
-  filter(Date_time< as.Date("2018-01-01"))
+  filter(Date_time<= as.Date("2018-01-01"))
 
 
 
 #Remove all the data we will not need based on application status
+exclude_list=c("PEND")
+T_Data <- T_Data %>%
+  filter(!disposal_type %in% exclude_list)
+
+#Remove all the date data that we will not need based on weeknum
 exclude_list=c("PEND")
 T_Data <- T_Data %>%
   filter(!disposal_type %in% exclude_list)
@@ -167,7 +172,7 @@ GN_Data <- T_Data %>%
 G_Data <- T_Data %>% 
   group_by(Week_Year,gender) %>% 
   summarise(
-    ds = min(Date_time),
+    ds = min(Date_time), # I have repeatedly attempted to change this assumption but have been unable to
     y=n(),
     )
 ```
@@ -270,12 +275,12 @@ tail(forecast[c('ds', 'yhat', 'yhat_lower', 'yhat_upper')])
 ```
 
     ##              ds     yhat yhat_lower yhat_upper
-    ## 1225 2017-12-21 4170.108   3839.703   4494.988
-    ## 1226 2017-12-22 4216.971   3904.978   4524.046
-    ## 1227 2017-12-23 4193.634   3872.130   4512.940
-    ## 1228 2017-12-24 4173.281   3867.830   4497.678
-    ## 1229 2017-12-25 4099.485   3798.534   4405.776
-    ## 1230 2017-12-26 4067.710   3763.884   4403.416
+    ## 1225 2017-12-21 4170.108   3830.856   4498.311
+    ## 1226 2017-12-22 4216.971   3892.450   4547.611
+    ## 1227 2017-12-23 4193.634   3902.551   4497.340
+    ## 1228 2017-12-24 4173.281   3846.356   4498.423
+    ## 1229 2017-12-25 4099.485   3781.048   4423.226
+    ## 1230 2017-12-26 4067.710   3739.748   4386.015
 
 It looks like we are predicting between 3,600 and 4,300 applications per
 week in end of 2017. This is not accounting for hollidays, which we will
@@ -285,15 +290,90 @@ need to fix.
 plot(m, forecast)
 ```
 
-![](Assignment-5_files/figure-gfm/prediction%203-1.png)<!-- -->
+![](Assignment-5_files/figure-gfm/prediction%203-1.png)<!-- --> We can
+look at the key feautres effecting the model
 
 ``` r
 prophet_plot_components(m, forecast)
 ```
 
-![](Assignment-5_files/figure-gfm/prediction%204-1.png)<!-- -->
+![](Assignment-5_files/figure-gfm/prediction%204-1.png)<!-- --> and then
+visualize the predictions!
 
-Let’s account for US publich Hollidays based on:
+``` r
+# Plot the prophet forecast with the test data points
+ggplot(forecast, aes(ds, yhat)) +
+  geom_ribbon(data = forecast,aes(ymin=yhat_lower,ymax=yhat_upper), alpha=0.1, color = "grey71")+
+  geom_point(data = GN_Data_Train, aes(ds, y, color = "train data"), size = 2) +
+  geom_point(data = GN_Data_Test, aes(ds, y, color = "test data"), size = 2) +
+  geom_line(aes(color = "prophet forecast")) +
+  scale_color_manual(values = c("blue", "red", "black"), labels = c("Forecast", "Test data", "Train data")) +
+  xlab("Date") +
+  ylab("y") +
+  ggtitle("Forecast with Actual Data Points")
+```
+
+![](Assignment-5_files/figure-gfm/plot%202017%20no%20holliday-1.png)<!-- -->
+
+We can also take a look at the model evaluation
+
+``` r
+actuals <- GN_Data_Test$y
+predictions <- tail(forecast$yhat,26)
+
+MAE <- mean(abs(actuals - predictions))
+```
+
+    ## Warning in actuals - predictions: longer object length is not a multiple of
+    ## shorter object length
+
+``` r
+MSE <- mean((actuals - predictions)^2)
+```
+
+    ## Warning in actuals - predictions: longer object length is not a multiple of
+    ## shorter object length
+
+``` r
+RMSE <- sqrt(MSE)
+MAPE <- mean(abs(actuals - predictions) / actuals)
+```
+
+    ## Warning in actuals - predictions: longer object length is not a multiple of
+    ## shorter object length
+
+    ## Warning in abs(actuals - predictions)/actuals: longer object length is not a
+    ## multiple of shorter object length
+
+``` r
+print(MAE)
+```
+
+    ## [1] 980.9874
+
+``` r
+print(MSE)
+```
+
+    ## [1] 2926939
+
+``` r
+print(RMSE)
+```
+
+    ## [1] 1710.83
+
+``` r
+print(MAPE)
+```
+
+    ## [1] 516.0019
+
+## 2017 with Hollidays
+
+The last prediction is not as clear as we could have hopped for.
+
+So let’s account for US publich Hollidays based on:
 <https://www.commerce.gov/hr/employees/leave/holidays>
 <https://www.kaggle.com/datasets/donnetew/us-holiday-dates-2004-2021>
 
@@ -331,7 +411,6 @@ m<-prophet(GN_Data_Train,holidays = holidays)
 ``` r
 future <- make_future_dataframe(m, periods = 365)
 
-# BEGINNING OF CHANGED CODE
 
 forecast <- predict(m, future)
 tail(future)
@@ -352,8 +431,114 @@ plot(m, forecast)
 ![](Assignment-5_files/figure-gfm/prediction%206-1.png)<!-- -->
 
 ``` r
-# Plot the prophet forecast with the test data points
+prophet_plot_components(m, forecast)
 ```
+
+![](Assignment-5_files/figure-gfm/plot%20the%20factors%202017%20holliday-1.png)<!-- -->
+
+``` r
+# Plot the prophet forecast with the test data points
+ggplot(forecast, aes(ds, yhat)) +
+  geom_ribbon(data = forecast,aes(ymin=yhat_lower,ymax=yhat_upper), alpha=0.1, color = "grey71")+
+  geom_point(data = GN_Data_Train, aes(ds, y, color = "train data"), size = 2) +
+  geom_point(data = GN_Data_Test, aes(ds, y, color = "test data"), size = 2) +
+  geom_line(aes(color = "prophet forecast")) +
+  scale_color_manual(values = c("blue", "red", "black"), labels = c("Forecast", "Test data", "Train data")) +
+  xlab("Date") +
+  ylab("y") +
+  ggtitle("Forecast with Actual Data Points")
+```
+
+![](Assignment-5_files/figure-gfm/plot%20prediction%202017%20holliday-1.png)<!-- -->
+
+We can also take a look at the model evaluation
+
+``` r
+actuals <- GN_Data_Test$y
+predictions <- forecast[1:25, "yhat"]
+
+MAE <- mean(abs(actuals - predictions))
+```
+
+    ## Warning in actuals - predictions: longer object length is not a multiple of
+    ## shorter object length
+
+``` r
+MSE <- mean((actuals - predictions)^2)
+```
+
+    ## Warning in actuals - predictions: longer object length is not a multiple of
+    ## shorter object length
+
+``` r
+RMSE <- sqrt(MSE)
+MAPE <- mean(abs(actuals - predictions) / actuals)
+```
+
+    ## Warning in actuals - predictions: longer object length is not a multiple of
+    ## shorter object length
+
+    ## Warning in abs(actuals - predictions)/actuals: longer object length is not a
+    ## multiple of shorter object length
+
+``` r
+print(MAE)
+```
+
+    ## [1] 3454.522
+
+``` r
+print(MSE)
+```
+
+    ## [1] 14292911
+
+``` r
+print(RMSE)
+```
+
+    ## [1] 3780.597
+
+``` r
+print(MAPE)
+```
+
+    ## [1] 8.528934
+
+## 2016 data
+
+Lets try removing 2017 data and predicting 2016 data instead
+
+``` r
+fdate="2016-01-01"
+edate="2017-01-01"
+GN_Data_Train <- GN_Data %>%
+  filter(ds< as.Date(fdate))
+
+GN_Data_Test <- GN_Data %>%
+  filter(ds>= as.Date(fdate))
+
+GN_Data_Test <- GN_Data_Test %>%
+  filter(ds<= as.Date(edate))
+
+m<-prophet(GN_Data_Train)
+```
+
+    ## Disabling daily seasonality. Run prophet with daily.seasonality=TRUE to override this.
+
+``` r
+future <- make_future_dataframe(m, periods = 365)
+forecast <- predict(m, future)
+plot(m,forecast)
+```
+
+![](Assignment-5_files/figure-gfm/prediction%202016-1.png)<!-- -->
+
+``` r
+prophet_plot_components(m, forecast)
+```
+
+![](Assignment-5_files/figure-gfm/plot%20the%20factors%202016%20holliday-1.png)<!-- -->
 
 ``` r
 ggplot(forecast, aes(ds, yhat)) +
@@ -367,4 +552,102 @@ ggplot(forecast, aes(ds, yhat)) +
   ggtitle("Forecast with Actual Data Points")
 ```
 
-![](Assignment-5_files/figure-gfm/prediction%207-1.png)<!-- -->
+![](Assignment-5_files/figure-gfm/plot%20prediction%202016%20holliday-1.png)<!-- -->
+
+``` r
+actuals <- GN_Data_Test$y
+predictions <- tail(forecast$yhat,52)
+
+MAE <- mean(abs(actuals - predictions))
+MSE <- mean((actuals - predictions)^2)
+RMSE <- sqrt(MSE)
+MAPE <- mean(abs(actuals - predictions) / actuals)
+
+
+print(MAE)
+```
+
+    ## [1] 324.8052
+
+``` r
+print(MSE)
+```
+
+    ## [1] 185234.2
+
+``` r
+print(RMSE)
+```
+
+    ## [1] 430.3885
+
+``` r
+print(MAPE)
+```
+
+    ## [1] 0.09044257
+
+## 2016 data with hollidays
+
+Lets try the same day with hollodays now
+
+``` r
+m<-prophet(GN_Data_Train, holidays = holidays)
+```
+
+    ## Disabling daily seasonality. Run prophet with daily.seasonality=TRUE to override this.
+
+``` r
+future <- make_future_dataframe(m, periods = 365)
+forecast <- predict(m, future)
+
+prophet_plot_components(m, forecast)
+```
+
+![](Assignment-5_files/figure-gfm/prediction%202016%20holliday-1.png)<!-- -->
+
+``` r
+ggplot(forecast, aes(ds, yhat)) +
+  geom_ribbon(data = forecast,aes(ymin=yhat_lower,ymax=yhat_upper), alpha=0.1, color = "grey71")+
+  geom_point(data = GN_Data_Train, aes(ds, y, color = "train data"), size = 2) +
+  geom_point(data = GN_Data_Test, aes(ds, y, color = "test data"), size = 2) +
+  geom_line(aes(color = "prophet forecast")) +
+  scale_color_manual(values = c("blue", "red", "black"), labels = c("Forecast", "Test data", "Train data")) +
+  xlab("Date") +
+  ylab("y") +
+  ggtitle("Forecast with Actual Data Points")
+```
+
+![](Assignment-5_files/figure-gfm/2016%20prediction%20plot-1.png)<!-- -->
+
+``` r
+actuals <- GN_Data_Test$y
+predictions <- tail(forecast$yhat,52)
+
+MAE <- mean(abs(actuals - predictions))
+MSE <- mean((actuals - predictions)^2)
+RMSE <- sqrt(MSE)
+MAPE <- mean(abs(actuals - predictions) / actuals)
+
+print(MAE)
+```
+
+    ## [1] 324.6266
+
+``` r
+print(MSE)
+```
+
+    ## [1] 180519.6
+
+``` r
+print(RMSE)
+```
+
+    ## [1] 424.8759
+
+``` r
+print(MAPE)
+```
+
+    ## [1] 0.09021357
