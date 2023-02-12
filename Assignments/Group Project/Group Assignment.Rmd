@@ -37,13 +37,7 @@ library(ggplot2)
 Now we load in the data. The app_gender_rate data is the primary data we will use for now. This data contains the transaction data for all applications, the examiner who processed them and their associated traits such as gender and ethnicity.
 
 ```{r loading}
-# # Personal level data from correction
-# person_level_data= read.csv('person_level_data.csv')
-# # Data of art unit changes
-# aus=read.csv("examiner_aus.csv")
-# # Get id crosswalk table
-# ids=read.csv("examiner_ids.csv")
-# Get parquet data that details the transactions for each examiner, their gender and most likely ethnicity
+
 App_data=read_parquet('apps_gender_rate.parquet')
 ```
 
@@ -58,7 +52,6 @@ App_data <- App_data %>%
 App_data <- App_data %>% 
   filter(!is.na(gender))
   
-
 # Clean Date format
 #get the date format cleaned
 App_data$Date_time=as.Date(App_data$appl_status_date, format="%d%b%Y")
@@ -66,16 +59,12 @@ App_data$Date_time=as.Date(App_data$appl_status_date, format="%d%b%Y")
 #get the date format for the filing date cleaned
 App_data$filing_date=as.Date(App_data$filing_date, format="%d%b%Y")
 
-# Code not needed
-# #get the quarter number
-# App_data$Quarter_Year=as.character(yearquarter(App_data$Date_time))
-# #get the week number
-# App_data$Week_Year=as.character(yearweek(App_data$Date_time))
+
 
 ```
 
 ## Pre-process
-Next we need to maks a few transformations to make sure that the data is in the format we need.First we need to filter the status update to a decison since we are trying to determine the amount of time between application date and a descision. Next, we will need to remove all data before 2017 as previous examples have shown that this data is full of outliers and other incomplte data. Last, we will need to add a field that calculates the amount of time between each application and each desscion. 
+Next we need to maks a few transformations to make sure that the data is in the format we need.First we need to filter the status update to a decison since we are trying to determine the amount of time between application date and a descision. Next, we will need to remove all data before 2017 decision previous examples have shown that this data is full of outliers and other incomplte data. Next we will have to convert some data fields to a nyew format.  Last, we will need to add a field that calculates the amount of time between each application and each desscion. 
 
 What type of applications are there?
 
@@ -111,6 +100,35 @@ nrow(T_Data)/nrow(App_data)*100
 ```
 We therefore have 79.8% of our data remaining. This is an acceptable amount for out analysis.
 
+Now we can remove some un-needed datacolumns. These are saved so we can merge these later if we need to
+
+```{r data cleaning}
+#list of data to keep)
+keep=c("filing_date","disposal_type","tc","gender","race","tenure_days","Date_time") #examiner_art_unit not kept as produces too man variables for packages
+T_Data = subset(T_Data, select = keep)
+
+```
+
+Pen-ultimately we will change the data type on a few columns for analysis ease
+
+```{r data type conversion}
+
+#Setting Gender as factor
+T_Data$gender = as.factor(T_Data$gender)
+
+#Setting ethnicity as factor
+T_Data$race = as.factor(T_Data$race)
+
+# #Art unit as a factor in case
+# T_Data$examiner_art_unit = as.factor(T_Data$examiner_art_unit)
+
+#setting the technology center as a factor
+T_Data$tc = as.factor(T_Data$tc)
+
+```
+
+## Feature Engineering
+
 Now the last step is to add a column that computes the time between application date and decision date.
 This column is called the application time and is the time in days between application filing and 
 
@@ -119,10 +137,96 @@ This column is called the application time and is the time in days between appli
 T_Data$Application_time <- T_Data$Date_time - T_Data$filing_date
 T_Data$Application_time <- as.numeric(T_Data$Application_time)
 
+#adding the year of filling and the year of approval to see time's effect
+T_Data$filing_year= as.numeric(year(T_Data$filing_date))
+T_Data$descision_year=as.numeric(year(T_Data$Date_time))
+
+```
+
+
+garbage collection (optional)
+
+```{r garbage}
+rm(App_data,exclude_list,keep)
 ```
 
 # Analysis
 
-Now that the data is in a clean and useable format
+Now that the data is in a clean and useable format let's examine the data more closely. First lets look at the summary stats for all the data
+
+```{r summary stats}
+library(kableExtra)
+library(vtable)
+sumtab=sumtable(T_Data)
+sumtab
+```
 
 
+
+Now lets look at the correlation plots
+```{r g gally}
+library(ggplot2)
+library(GGally)
+d=ggpairs(T_Data)
+d
+```
+
+```{r pair plots }
+require(corrplot)
+num_cols <- unlist(lapply(T_Data, is.numeric))       
+quanvars <- T_Data[ , num_cols]           
+corr_matrix <- cor(quanvars)
+corrplot(corr_matrix)
+```
+
+
+
+```{r  pca analysis}
+library(ggfortify)
+pca=prcomp(quanvars, scale=TRUE)
+autoplot(pca, data = quanvars, loadings = TRUE, loadings.label = TRUE )
+```
+
+```{r tree model}
+library(tree)
+library(rpart)
+library(rpart.plot)
+
+
+myoverfittedtree=rpart(Application_time~disposal_type,tc,gender,race,tenure_days,filing_year,descision_year,control=rpart.control(cp=0.001),data=T_Data)
+rpart.plot(myoverfittedtree)
+
+plotcp(myoverfittedtree)
+
+```
+
+
+```{r tree 2}
+
+opt_cp=myoverfittedtree$cptable[which.min(myoverfittedtree$cptable[,"xerror"]),"CP"]
+
+myoverfittedtree=rpart(Application_time~disposal_type,tc,gender,race,tenure_days,filing_year,descision_year,control=rpart.control(cp=opt_cp),data=T_Data)
+
+rpart.plot(myoverfittedtree)
+```
+
+
+```{r unused Code}
+# # Personal level data from correction
+# person_level_data= read.csv('person_level_data.csv')
+# # Data of art unit changes
+# aus=read.csv("examiner_aus.csv")
+# # Get id crosswalk table
+# ids=read.csv("examiner_ids.csv")
+# Get parquet data that details the transactions for each examiner, their gender and most likely ethnicity
+
+
+# Code not needed
+# #get the quarter number
+# App_data$Quarter_Year=as.character(yearquarter(App_data$Date_time))
+# #get the week number
+# App_data$Week_Year=as.character(yearweek(App_data$Date_time))
+
+
+
+```
