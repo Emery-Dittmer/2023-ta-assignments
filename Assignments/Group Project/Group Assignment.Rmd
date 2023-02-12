@@ -121,4 +121,8 @@ T_Data$Application_time <- as.numeric(T_Data$Application_time)
 
 ```
 
+# Analysis
+
+Now that the data is in a clean and useable format
+
 

@@ -1,0 +1,180 @@
+Group Assignment
+================
+
+# Background
+
+This notebook contains all code and answers to the talent analytics
+assignment. Specifically we will be tackling the following question:
+
+What are the organizational and social factors associated with the
+length of patent application prosecution?
+
+# Data Cleaning and Pre-Processing
+
+In order to analyze the data, we first need to pre-process it in a way
+that is usable for analysis.
+
+## Loading Data and Basic Packages
+
+### Load packages
+
+First we need to load the basic packages for the manipulation of data.
+Other packages will be loaded as needed.
+
+``` r
+#library(tidyverse)
+library(dplyr)
+```
+
+    ## 
+    ## Attaching package: 'dplyr'
+
+    ## The following objects are masked from 'package:stats':
+    ## 
+    ##     filter, lag
+
+    ## The following objects are masked from 'package:base':
+    ## 
+    ##     intersect, setdiff, setequal, union
+
+``` r
+library(stringr)
+library(arrow)
+```
+
+    ## 
+    ## Attaching package: 'arrow'
+
+    ## The following object is masked from 'package:utils':
+    ## 
+    ##     timestamp
+
+``` r
+library(lubridate)
+```
+
+    ## 
+    ## Attaching package: 'lubridate'
+
+    ## The following object is masked from 'package:arrow':
+    ## 
+    ##     duration
+
+    ## The following objects are masked from 'package:base':
+    ## 
+    ##     date, intersect, setdiff, union
+
+``` r
+#library(tsibble)
+library(ggplot2)
+```
+
+### Load data
+
+Now we load in the data. The app_gender_rate data is the primary data we
+will use for now. This data contains the transaction data for all
+applications, the examiner who processed them and their associated
+traits such as gender and ethnicity.
+
+``` r
+# # Personal level data from correction
+# person_level_data= read.csv('person_level_data.csv')
+# # Data of art unit changes
+# aus=read.csv("examiner_aus.csv")
+# # Get id crosswalk table
+# ids=read.csv("examiner_ids.csv")
+# Get parquet data that details the transactions for each examiner, their gender and most likely ethnicity
+App_data=read_parquet('apps_gender_rate.parquet')
+```
+
+## Clean Data
+
+Now that we have the data, we can clean and pre-process it. We will
+remove all the fields with NAs so that we can get meaningful insights.
+
+``` r
+# Remove Nas from status date
+App_data <- App_data %>% 
+  filter(!is.na(appl_status_date))
+
+# Remove Nas from gender
+App_data <- App_data %>% 
+  filter(!is.na(gender))
+  
+
+# Clean Date format
+#get the date format cleaned
+App_data$Date_time=as.Date(App_data$appl_status_date, format="%d%b%Y")
+
+#get the date format for the filing date cleaned
+App_data$filing_date=as.Date(App_data$filing_date, format="%d%b%Y")
+
+# Code not needed
+# #get the quarter number
+# App_data$Quarter_Year=as.character(yearquarter(App_data$Date_time))
+# #get the week number
+# App_data$Week_Year=as.character(yearweek(App_data$Date_time))
+```
+
+## Pre-process
+
+Next we need to maks a few transformations to make sure that the data is
+in the format we need.First we need to filter the status update to a
+decison since we are trying to determine the amount of time between
+application date and a descision. Next, we will need to remove all data
+before 2017 as previous examples have shown that this data is full of
+outliers and other incomplte data. Last, we will need to add a field
+that calculates the amount of time between each application and each
+desscion.
+
+What type of applications are there?
+
+``` r
+unique(App_data$disposal_type)
+```
+
+    ## [1] "ISS"  "ABN"  "PEND"
+
+We will remove all “PEND” type applications. Then make a new field to
+compute time.
+
+``` r
+#create new data fame with all manipulations. App_Data held as clean data
+T_Data=App_data
+
+#Remove all the data we will not need based on application status
+exclude_list=c("PEND")
+T_Data <- T_Data %>%
+  filter(!disposal_type %in% exclude_list)
+```
+
+Now we can remove the data from before 2017 since it has high levels of
+outliers and bad data.
+
+``` r
+#remove all values before 2017
+T_Data <- T_Data %>% 
+  filter(Date_time<= as.Date("2017-01-01"))
+
+#Data Remain
+nrow(T_Data)/nrow(App_data)*100
+```
+
+    ## [1] 79.78629
+
+We therefore have 79.8% of our data remaining. This is an acceptable
+amount for out analysis.
+
+Now the last step is to add a column that computes the time between
+application date and decision date. This column is called the
+application time and is the time in days between application filing and
+
+``` r
+#this is the amount of time in days that the applications take
+T_Data$Application_time <- T_Data$Date_time - T_Data$filing_date
+T_Data$Application_time <- as.numeric(T_Data$Application_time)
+```
+
+# Analysis
+
+Now that the data is in a clean and useable format
