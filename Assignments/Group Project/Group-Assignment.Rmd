@@ -230,7 +230,6 @@ Let's compare side by side
 
 ```{r Violin plots}
 library(tidyverse)
-library(dcldata)
 
 T_Data$race_gender=paste(T_Data$race,T_Data$gender)
 T_Data$race_gender=as.factor(T_Data$race_gender)
@@ -241,6 +240,9 @@ T_Data %>%
   geom_hline(aes(yintercept = median(Application_time)), color = "red") +
   geom_violin() +
   theme(axis.text.x = element_text(angle = -45, hjust = 0))
+
+drop <- c("race_gender")
+T_Data = T_Data[,!(names(T_Data) %in% drop)]
 ```
 
 
@@ -277,7 +279,7 @@ plotcp(myoverfittedtree)
 opt_cp=myoverfittedtree$cptable[which.min(myoverfittedtree$cptable[,"xerror"]),"CP"]
 ```
 
-We can plot an optimal tree based on the lowest cv, However this becomes in comprehnisble. Therefore we will swithc to the elbow method.
+We can plot an optimal tree based on the lowest cv, However this becomes in comprehnisble. Therefore we will switch to the elbow method.
 
 ```{r tree 2}
 opt_cp=0.01
@@ -286,9 +288,19 @@ optimal_tree=rpart(Application_time~disposal_type+tc+gender+race+tenure_days+des
 rpart.plot(optimal_tree)
 ```
 
+Lets look specifically at the people traits like gender and ethnicity. We will use
+```{r tree 3}
+opt_cp=0.00001
+optimal_tree=rpart(Application_time~gender+race,data = T_Data,control=rpart.control(cp=opt_cp))
+
+rpart.plot(optimal_tree)
+```
+
+While his may look meaningful, the cp is set extremely high (0.00001). Therefore the decision tree is extremely sensitive. A random forest model might contain more meaningful data but at this level the ethnicity and gender effects on application times are minimal.
+
 ## Linear Discrimanat Analysis
 
-We should be able to look at how a specific factor like gender affects the application rate. This method is based on prior probabilities and Bayeian statistics. Since we have some indication that the data is normally distributed we can use this method to estimate the effect of various factors and use that.
+We should be able to look at how a specific factor like gender affects the application rate. This method is based on prior probabilities and Bayesian statistics. Since we have some indication that the data is normally distributed we can use this method to estimate the effect of various factors and use that.
 
 
 ```{r LDA 1 }
@@ -296,18 +308,40 @@ library(MASS)
 library(klaR)
 
 mylda=lda(Application_time~disposal_type+tc+gender+race+tenure_days+descision_year+filing_year,data = T_Data)
-mylda
+mylda[4]
 
+```
+ 
+```{r LDA fit 2}
+
+mylda=lda(Application_time~gender+race,data = T_Data)
+mylda[4]
+
+
+```
+
+ 
+```{r LDA fit 3}
+drop <- c("Application_time","descision_year","filing_year","Date_time","tenure_days","tc","filing_date","disposal_type")
+pred_df = T_Data[0:1000,!(names(T_Data) %in% drop)]
+library(caret)
+predictions=as.numeric(predict(mylda,newdata=pred_df)$class)
+Application_time=T_Data$Application_time[0:1000]
+test=data.frame(predictions,Application_time)
+test$abs_diff<-abs(test$predictions-test$Application_time)
+test$sq_error<-test$abs_diff**2
+MAE=mean(test$abs_diff)
+MSE=mean(test$sq_error)
+MAE
+MSE
 ```
 
 ```{r LDA partimat functionality }
  
-# partimat(race~Application_time, method="lda",image.colors=c("light
-# grey", "light green", "white"),data+T_Data)
+#partimat(race~Application_time+filing_date, method="lda",data=T_Data)
 ```
 
-## Clustering
-Lastly, we are going to look at clustering to group the applications together. This may reveal some hidden characteristics and trains not seen before.
+
 
 # Appendix
 
@@ -316,6 +350,16 @@ Lastly, we are going to look at clustering to group the applications together. T
 ```{r optimal tree summary}
 summary(optimal_tree)
 ```
+
+## LDA Summary
+
+```{r lda summary full}
+mylda
+```
+
+## Clustering that did not work
+
+
 
 
 ## Unused Code kept for reference.
@@ -338,5 +382,33 @@ summary(optimal_tree)
 # App_data$Week_Year=as.character(yearweek(App_data$Date_time))
 
 
+# library(dcldata)
 
+```
+
+## Clustering
+Lastly, we are going to look at clustering to group the applications together. This may reveal some hidden characteristics and trains not seen before.
+
+```{r clustering analysis}
+# km.2=kmeans(T_Data[,c(8,6)], 2) #2 clusters
+# km.3=kmeans(T_Data[,c(8,6)], 3) #3 clusters
+# km.5=kmeans(T_Data[,c(8,6)], 5)#5 clusters
+```
+# 
+```{r 2 clusters}
+# T_Data$cluster=as.factor(km.2$cluster)
+# ggplot(T_Data,aes(y=Application_time, x=tenure_days))+
+#   geom_point(aes(colour=cluster))
+```
+# 
+```{r 3 clusters}
+# T_Data$cluster=as.factor(km.3$cluster)
+# ggplot(T_Data,aes(y=Application_time, x=tenure_days))+
+#   geom_point(aes(colour=cluster))
+```
+# 
+```{r 5 clusters}
+# T_Data$cluster=as.factor(km.5$cluster)
+# ggplot(T_Data,aes(y=Application_time, x=tenure_days))+
+#   geom_point(aes(colour=cluster))
 ```
