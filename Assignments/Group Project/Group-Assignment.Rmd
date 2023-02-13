@@ -51,6 +51,11 @@ App_data <- App_data %>%
 # Remove Nas from gender
 App_data <- App_data %>% 
   filter(!is.na(gender))
+
+
+# Remove Nas from race
+App_data <- App_data %>% 
+  filter(!is.na(race))
   
 # Clean Date format
 #get the date format cleaned
@@ -354,7 +359,7 @@ summary(optimal_tree)
 ## LDA Summary
 
 ```{r lda summary full}
-mylda
+#mylda
 ```
 
 ## Clustering that did not work
