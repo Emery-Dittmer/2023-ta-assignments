@@ -162,7 +162,8 @@ merge these later if we need to
 
 ``` r
 #list of data to keep)
-keep=c("filing_date","disposal_type","tc","gender","race","tenure_days","Date_time") #examiner_art_unit not kept as produces too man variables for packages
+
+keep=c("filing_date","disposal_type","tc","gender","race","tenure_days","Date_time","examiner_id") #examiner_art_unit not kept as produces too man variables for packages
 T_Data = subset(T_Data, select = keep)
 ```
 
@@ -179,11 +180,14 @@ T_Data$race = as.factor(T_Data$race)
 #Setting ethnicity as factor
 T_Data$disposal_type = as.factor(T_Data$disposal_type)
 
+#setting the technology center as a factor
+T_Data$tc = as.factor(T_Data$tc)
+
 # #Art unit as a factor in case
 # T_Data$examiner_art_unit = as.factor(T_Data$examiner_art_unit)
 
-#setting the technology center as a factor
-T_Data$tc = as.factor(T_Data$tc)
+T_Data_ggally=T_Data[,1:7]
+T_Data_ggally=T_Data[,c(1:5,7)]
 ```
 
 ## Feature Engineering
@@ -200,12 +204,27 @@ T_Data$Application_time <- as.numeric(T_Data$Application_time)
 #adding the year of filling and the year of approval to see time's effect
 T_Data$filing_year= as.numeric(year(T_Data$filing_date))
 T_Data$descision_year=as.numeric(year(T_Data$Date_time))
+
+#we will assume that tenure days is roughly equal to the tenure days since the last patent descision
+Temp_data <- T_Data %>% 
+  group_by(examiner_id) %>% 
+  summarise(
+    start_data = min(Date_time)
+    )
+
+T_Data <- merge(T_Data, Temp_data, by = 'examiner_id',all=T)
+T_Data$Approx_Tenue_Days=as.numeric(T_Data$Date_time-T_Data$start_data)
+
+#get median
+med_app_time=median(T_Data$Application_time)
+
+#T_data=T_Data[,2:12]
 ```
 
 garbage collection (optional)
 
 ``` r
-rm(App_data,exclude_list,keep)
+rm(App_data,exclude_list,keep,Temp_data)
 ```
 
 # Descriptive Analysis
@@ -217,14 +236,84 @@ data more closely. First lets look at the summary stats for all the data
 
 ``` r
 # 
-# library(vtable)
-# print(sumtable(T_Data))
+library(vtable)
 ```
+
+    ## Loading required package: kableExtra
+
+    ## 
+    ## Attaching package: 'kableExtra'
+
+    ## The following object is masked from 'package:dplyr':
+    ## 
+    ##     group_rows
+
+``` r
+# print(sumtable(T_Data))
+Temp_data <- T_Data %>% 
+  group_by(gender,race) %>% 
+  summarise(
+    count = n()
+    )
+```
+
+    ## `summarise()` has grouped output by 'gender'. You can override using the
+    ## `.groups` argument.
+
+``` r
+Temp_data
+```
+
+    ## # A tibble: 9 × 3
+    ## # Groups:   gender [2]
+    ##   gender race      count
+    ##   <fct>  <fct>     <int>
+    ## 1 female Asian    112599
+    ## 2 female black     22450
+    ## 3 female Hispanic  12772
+    ## 4 female white    305044
+    ## 5 male   Asian    212813
+    ## 6 male   black     25423
+    ## 7 male   Hispanic  25993
+    ## 8 male   other       993
+    ## 9 male   white    646892
+
+``` r
+summary(T_Data)
+```
+
+    ##   examiner_id     filing_date         disposal_type    tc        
+    ##  Min.   :59012   Min.   :2000-01-02   ABN:498337    1600:368721  
+    ##  1st Qu.:66582   1st Qu.:2004-04-02   ISS:866642    1700:529276  
+    ##  Median :75345   Median :2007-11-13                 2100:270837  
+    ##  Mean   :78847   Mean   :2007-10-08                 2400:196145  
+    ##  3rd Qu.:93839   3rd Qu.:2011-05-04                              
+    ##  Max.   :99988   Max.   :2016-11-14                              
+    ##     gender             race         tenure_days     Date_time         
+    ##  female:452865   Asian   :325412   Min.   : 216   Min.   :2000-05-24  
+    ##  male  :912114   black   : 47873   1st Qu.:5180   1st Qu.:2009-06-29  
+    ##                  Hispanic: 38765   Median :6209   Median :2012-07-13  
+    ##                  other   :   993   Mean   :5670   Mean   :2011-11-05  
+    ##                  white   :951936   3rd Qu.:6338   3rd Qu.:2014-12-10  
+    ##                                    Max.   :6518   Max.   :2017-01-01  
+    ##  Application_time  filing_year   descision_year   start_data        
+    ##  Min.   :  11     Min.   :2000   Min.   :2000   Min.   :2000-05-24  
+    ##  1st Qu.: 858     1st Qu.:2004   1st Qu.:2009   1st Qu.:2001-07-19  
+    ##  Median :1213     Median :2007   Median :2012   Median :2004-09-29  
+    ##  Mean   :1489     Mean   :2007   Mean   :2011   Mean   :2005-04-04  
+    ##  3rd Qu.:1786     3rd Qu.:2011   3rd Qu.:2014   3rd Qu.:2008-08-13  
+    ##  Max.   :6187     Max.   :2016   Max.   :2017   Max.   :2016-11-29  
+    ##  Approx_Tenue_Days
+    ##  Min.   :   0     
+    ##  1st Qu.:1186     
+    ##  Median :2216     
+    ##  Mean   :2405     
+    ##  3rd Qu.:3473     
+    ##  Max.   :6064
 
 Now lets look at the correlation plots
 
 ``` r
-library(ggplot2)
 library(GGally)
 ```
 
@@ -233,7 +322,7 @@ library(GGally)
     ##   +.gg   ggplot2
 
 ``` r
-d=ggpairs(T_Data)
+d=ggpairs(T_Data_ggally)
 d
 ```
 
@@ -246,24 +335,12 @@ d
     ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
     ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
     ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
-    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
-    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
-    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
-    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
-    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
-    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
-    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
-    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
-    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
-    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
-    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
-    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
-    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
-    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
-    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
-    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
 
 ![](Group-Assignment_files/figure-gfm/g%20gally-1.png)<!-- -->
+
+``` r
+rm(T_Data_ggally,Temp_data)
+```
 
 ``` r
 require(corrplot)
@@ -275,7 +352,9 @@ require(corrplot)
 
 ``` r
 num_cols <- unlist(lapply(T_Data, is.numeric))       
-quanvars <- T_Data[ , num_cols]           
+quanvars <- T_Data[ , num_cols] 
+drop <- c("tenure_days","examiner_id")
+quanvars = quanvars[,!(names(quanvars) %in% drop)]
 corr_matrix <- cor(quanvars)
 corrplot(corr_matrix)
 ```
@@ -283,20 +362,47 @@ corrplot(corr_matrix)
 ![](Group-Assignment_files/figure-gfm/pair%20plots-1.png)<!-- --> \##
 Distribution of Data
 
+``` r
+hists=ggplot(T_Data, aes(x=Application_time))+geom_histogram(bins = 30)+
+  geom_vline(aes(xintercept = med_app_time), color = "red")+
+    ggtitle("Histogram of Application Length in Days. Median in Red")
+hists
+```
+
+![](Group-Assignment_files/figure-gfm/histogram%20distribtion-1.png)<!-- -->
+
 lets examine the distribtuon of the number of aplications by the number
-of days it usually takes for each tc to complete.
+of days it usually takes for each tc to complete
 
 ``` r
-hists=ggplot(T_Data, aes(x=Application_time))+geom_histogram(bins = 30)+facet_grid(T_Data$tc)
+hists=ggplot(T_Data, aes(x=Application_time))+geom_histogram(bins = 30)+
+  facet_grid(T_Data$tc)+
+  geom_vline(aes(xintercept = med_app_time), color = "red")+
+  ggtitle("Histogram of Application Length in Days Brokenout by TC. Median in Red")
 hists
 ```
 
 ![](Group-Assignment_files/figure-gfm/histogram%20distribtion%20ethnicity-1.png)<!-- -->
-
-Now let’s take a look at the spead of application years
+Lets look at it by gender and tc now
 
 ``` r
-hists=ggplot(T_Data, aes(x=filing_year))+geom_histogram(bins = 30)+facet_grid(T_Data$tc)
+hists=ggplot(T_Data, aes(x=Application_time))+geom_histogram(bins = 30)+
+  facet_grid(T_Data$tc~T_Data$gender)+
+  geom_vline(aes(xintercept = med_app_time), color = "red")+
+  ggtitle("Histogram of Application Length in Days Brokenout by TC. Median in Red")
+hists
+```
+
+![](Group-Assignment_files/figure-gfm/histogram%20distribtion%20ethnicity%201-1.png)<!-- -->
+
+Now let’s take a look at the spead of application years to see if there
+are more applications in one year than another
+
+``` r
+hists=ggplot(T_Data, aes(x=filing_year))+
+  geom_histogram(bins = 30)+
+  facet_grid(T_Data$tc)+
+  ggtitle("Histogram of Application Length in Days.")
 hists
 ```
 
@@ -328,7 +434,10 @@ ggplot()+
 ``` r
 ggplot()+
   geom_histogram(data=T_Data, aes(Application_time))+
-  facet_grid(T_Data$gender~T_Data$race)
+  facet_grid(T_Data$gender~T_Data$race)+
+  xlab("Length of Application")+
+  ylab("Count of Application Length")+
+  ggtitle("Histogram of Application Length in Days Brokenout by TC. Median in Red")
 ```
 
     ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
@@ -369,6 +478,7 @@ library(tidyverse)
     ## ✖ lubridate::date()        masks base::date()
     ## ✖ lubridate::duration()    masks arrow::duration()
     ## ✖ dplyr::filter()          masks stats::filter()
+    ## ✖ kableExtra::group_rows() masks dplyr::group_rows()
     ## ✖ lubridate::intersect()   masks base::intersect()
     ## ✖ dplyr::lag()             masks stats::lag()
     ## ✖ lubridate::setdiff()     masks base::setdiff()
@@ -381,17 +491,12 @@ T_Data$race_gender=as.factor(T_Data$race_gender)
 T_Data %>% 
   mutate(factors = fct_reorder(race_gender,Application_time )) %>% 
   ggplot(aes(factors, Application_time)) +
-  geom_hline(aes(yintercept = median(Application_time)), color = "red") +
+  geom_hline(aes(yintercept = med_app_time), color = "red") +
   geom_violin() +
   theme(axis.text.x = element_text(angle = -45, hjust = 0))
 ```
 
 ![](Group-Assignment_files/figure-gfm/Violin%20plots-1.png)<!-- -->
-
-``` r
-drop <- c("race_gender")
-T_Data = T_Data[,!(names(T_Data) %in% drop)]
-```
 
 Based on the graphs we can see a similar pattern for application time,
 where all tcs have a steadliy decreasing application wait time. However,
@@ -400,6 +505,11 @@ taking longer are not being counted and therefore are filtered out.
 These applications do not have a status of issued or no. It is
 interesting to see there is no real discernable pattern between any tcs
 on the amount of time ofr a patent applcation.
+
+``` r
+drop <- c("race_gender")
+T_Data = T_Data[,!(names(T_Data) %in% drop)]
+```
 
 ## PCA Analaysis
 
@@ -414,6 +524,96 @@ Preictive Analysis
 
 We will now attempt to use various models to predict the application
 time based on the features of the data
+
+## Prophet Prediction on the future
+
+Let’s use the prophet package to predict the future of the filing number
+of applications
+
+``` r
+#install.packages('prophet')
+library(prophet)
+```
+
+    ## Loading required package: Rcpp
+
+    ## Loading required package: rlang
+
+    ## 
+    ## Attaching package: 'rlang'
+
+    ## The following objects are masked from 'package:purrr':
+    ## 
+    ##     %@%, as_function, flatten, flatten_chr, flatten_dbl, flatten_int,
+    ##     flatten_lgl, flatten_raw, invoke, splice
+
+    ## The following object is masked from 'package:arrow':
+    ## 
+    ##     string
+
+``` r
+Pred_Data <- T_Data %>% 
+  group_by(Date_time) %>% 
+  summarise(
+    ds = as.POSIXct(min(Date_time)), # I have repeatedly attempted to change this assumption but have been unable to
+    y=n(),
+    )
+
+m<-prophet(Pred_Data)
+future <- make_future_dataframe(m, periods = 365)
+tail(future)
+```
+
+    ##                       ds
+    ## 5821 2017-12-26 19:00:00
+    ## 5822 2017-12-27 19:00:00
+    ## 5823 2017-12-28 19:00:00
+    ## 5824 2017-12-29 19:00:00
+    ## 5825 2017-12-30 19:00:00
+    ## 5826 2017-12-31 19:00:00
+
+Now we can make some predictions
+
+``` r
+forecast <- predict(m, future)
+tail(forecast[c('ds', 'yhat', 'yhat_lower', 'yhat_upper')])
+```
+
+    ##                       ds      yhat yhat_lower yhat_upper
+    ## 5821 2017-12-26 19:00:00 1138.8410  791.65822  1493.4931
+    ## 5822 2017-12-27 19:00:00  445.2975   71.81251   790.8908
+    ## 5823 2017-12-28 19:00:00  457.0060  117.46159   815.5938
+    ## 5824 2017-12-29 19:00:00  276.0807  -57.33098   628.1289
+    ## 5825 2017-12-30 19:00:00  226.9363 -115.43376   551.1176
+    ## 5826 2017-12-31 19:00:00  534.7482  171.74237   899.0063
+
+``` r
+plot(m, forecast)
+```
+
+![](Group-Assignment_files/figure-gfm/prophet%20prediction%203-1.png)<!-- -->
+We can look at the key feautres effecting the model
+
+``` r
+prophet_plot_components(m, forecast)
+```
+
+![](Group-Assignment_files/figure-gfm/prophet%20prediction%204-1.png)<!-- -->
+and then visualize the predictions!
+
+``` r
+# Plot the prophet forecast with the test data points
+ggplot(forecast, aes(ds, yhat)) +
+  geom_ribbon(data = forecast,aes(ymin=yhat_lower,ymax=yhat_upper), alpha=0.1, color = "grey71")+
+  geom_point(data = Pred_Data, aes(ds, y, color = "train data"), size = 2,alpha=0.2) +
+  geom_line(aes(color = "prophet forecast",alpha=0.001)) +
+  scale_color_manual(values = c("blue", "red", "black"), labels = c("Forecast", "Test data"))+
+  xlab("Date") +
+  ylab("y") +
+  ggtitle("Forecast of number of descisions")
+```
+
+![](Group-Assignment_files/figure-gfm/prophet%20prediction%20plot-1.png)<!-- -->
 
 ## Tree model for predictive
 
@@ -474,6 +674,88 @@ Therefore the decision tree is extremely sensitive. A random forest
 model might contain more meaningful data but at this level the ethnicity
 and gender effects on application times are minimal.
 
+## Survival finctions
+
+Survival data are time-to-event data that consist of a distinct start
+time and end time. These might be helpful.
+
+``` r
+library(survival)
+library(lubridate)
+library(ggsurvfit)
+library(gtsummary)
+library(tidycmprsk)
+```
+
+    ## 
+    ## Attaching package: 'tidycmprsk'
+
+    ## The following object is masked from 'package:gtsummary':
+    ## 
+    ##     trial
+
+``` r
+#library(condsurv)
+
+T_Data <- T_Data %>% 
+  mutate(
+    status = recode(disposal_type, `ABN` = 0, `ISS` = 1)
+  )
+
+survfit(Surv(Application_time) ~ 1, data = T_Data) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Days",
+    y = "Overall survival probability"
+  ) + 
+  add_confidence_interval()+
+  add_risktable()
+```
+
+![](Group-Assignment_files/figure-gfm/survival%201-1.png)<!-- -->
+
+Looking at the gender effect
+
+``` r
+survfit(Surv(Application_time) ~ gender, data = T_Data) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Days",
+    y = "Overall survival probability"
+  ) + 
+  add_confidence_interval()
+```
+
+![](Group-Assignment_files/figure-gfm/survival%202-1.png)<!-- -->
+
+looking at the ethnicity effects
+
+``` r
+survfit(Surv(Application_time) ~ race, data = T_Data) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Days",
+    y = "Overall survival probability"
+  ) + 
+  add_confidence_interval()
+```
+
+![](Group-Assignment_files/figure-gfm/survival%203-1.png)<!-- -->
+
+``` r
+survfit(Surv(Application_time, status) ~ gender+race, data = T_Data) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Days",
+    y = "Overall survival probability"
+  ) + 
+  add_confidence_interval()
+```
+
+![](Group-Assignment_files/figure-gfm/survival%204-1.png)<!-- -->
+
+## Mixture models
+
 ## Linear Discrimanat Analysis
 
 We should be able to look at how a specific factor like gender affects
@@ -488,6 +770,10 @@ library(MASS)
 
     ## 
     ## Attaching package: 'MASS'
+
+    ## The following object is masked from 'package:gtsummary':
+    ## 
+    ##     select
 
     ## The following object is masked from 'package:dplyr':
     ## 
@@ -533,7 +819,7 @@ mylda[4]
     ## tc2100           -0.009951305  0.4885325711  0.3443880462 -0.925700391
     ## tc2400            0.058067722  0.1458910591  0.3905576605 -1.054023959
     ## gendermale       -0.017314610 -0.9069877320 -0.4424454092  0.399951929
-    ## raceblack        -3.986820247 -0.8230861268  3.9190936845 -0.094225873
+    ## raceblack        -3.986820247 -0.8230861267  3.9190936845 -0.094225873
     ## raceHispanic      1.193334693 -2.4829176887  2.1986235353  3.908102303
     ## raceother        20.058730045 16.2428371120 22.3726251925  3.228394862
     ## racewhite        -1.016869511  1.2944531429  0.3274169230  1.026532185
@@ -565,6 +851,10 @@ library(caret)
     ## 
     ## Attaching package: 'caret'
 
+    ## The following object is masked from 'package:survival':
+    ## 
+    ##     cluster
+
     ## The following object is masked from 'package:purrr':
     ## 
     ##     lift
@@ -580,13 +870,13 @@ MSE=mean(test$sq_error)
 MAE
 ```
 
-    ## [1] 1491.992
+    ## [1] 562.345
 
 ``` r
 MSE
 ```
 
-    ## [1] 4413772
+    ## [1] 896196.3
 
 ``` r
 #partimat(race~Application_time+filing_date, method="lda",data=T_Data)
@@ -606,10 +896,10 @@ summary(optimal_tree)
     ##   n= 1364979 
     ## 
     ##             CP nsplit rel error    xerror        xstd
-    ## 1 2.517560e-05      0 1.0000000 1.0000014 0.001991458
-    ## 2 1.796204e-05      4 0.9998993 0.9999179 0.001990940
-    ## 3 1.165379e-05      5 0.9998813 0.9998912 0.001990957
-    ## 4 1.000000e-05      6 0.9998697 0.9998849 0.001990927
+    ## 1 2.517560e-05      0 1.0000000 1.0000019 0.001991459
+    ## 2 1.796204e-05      4 0.9998993 0.9999296 0.001990961
+    ## 3 1.165379e-05      5 0.9998813 0.9998978 0.001990966
+    ## 4 1.000000e-05      6 0.9998697 0.9998886 0.001990930
     ## 
     ## Variable importance
     ##   race gender 
