@@ -22,14 +22,24 @@ In order to analyze the data, we first need to pre-process it in a way that is u
 
 ### Load packages
 First we need to load the basic packages for the manipulation of data. Other packages will be loaded as needed.
+
 ```{r packages}
-#library(tidyverse)
+
 library(dplyr)
 library(stringr)
 library(arrow)
 library(lubridate)
-#library(tsibble)
 library(ggplot2)
+  
+#for first time use
+#install.packages('compareGroups')
+#install.packages('webr')
+#install.packages('prophet')
+#install.packages('survival')
+
+#archive
+#library(tsibble)
+#library(tidyverse)
 ```
 
 ### Load data
@@ -221,8 +231,6 @@ PD = T_Data %>%
   group_by(gender, race) %>%
   summarise(n = n())
 
-#install.packages('webr')
-
 library(webr)
 PieDonut(PD, aes(gender,race, count=n), title = "Patent Examiners by Race & Gender",r0 = 0.45, r1 = 0.9, addDonutLabel= TRUE )
 ```
@@ -276,11 +284,20 @@ hists
 ```
 
 Now let's take a look at the spead of application years to see if there are more applications in one year than another
-```{r histogram distribtion ethnicity 2}
+```{r histogram distribtion ethnicity 2-1}
+hists=ggplot(T_Data, aes(x=filing_year))+
+  geom_histogram(bins = 30)+
+  ggtitle("Histogram of Application filing year.")
+hists
+```
+
+
+
+```{r histogram distribtion ethnicity 2-2}
 hists=ggplot(T_Data, aes(x=filing_year))+
   geom_histogram(bins = 30)+
   facet_grid(T_Data$tc)+
-  ggtitle("Histogram of Application Length in Days.")
+  ggtitle("Histogram of Application filing year.")
 hists
 ```
 
@@ -321,6 +338,7 @@ Let's compare side by side
 
 ```{r Violin plots}
 library(tidyverse)
+library(ggpubr)
 
 T_Data$race_gender=paste(T_Data$race,T_Data$gender)
 T_Data$race_gender=as.factor(T_Data$race_gender)
@@ -332,14 +350,30 @@ T_Data %>%
   geom_violin() +
   theme(axis.text.x = element_text(angle = -45, hjust = 0))
 
-```
 
+```
+```{r box plots}
+ggboxplot(T_Data, x= 'race_gender', y='Application_time',color='race_gender',xlab=FALSE,ylab="Application Time (in Days)")+
+  rotate_x_text(45)
+```
 
 Based on the graphs we can see a similar pattern for application time, where all tcs have a steadliy decreasing application wait time. However, this is likely a right censoring problem as the applications that are taking longer are not being counted and therefore are filtered out. These applications do not have a status of issued or no. It is interesting to see there is no real discernable pattern between any tcs on the amount of time ofr a patent applcation.
 
 ```{r garbage collection}
 drop <- c("race_gender")
 T_Data = T_Data[,!(names(T_Data) %in% drop)]
+```
+
+## Average Comparisons
+
+Let's compare the averages between groups
+```{r compare averages 1 }
+t=t.test(Application_time ~ gender, data = T_Data, var.equal = FALSE)
+summary(t)
+t=aov(Application_time ~ race, data = T_Data)
+summary(t)
+t=aov(Application_time ~ race+gender, data = T_Data)
+summary(t)
 ```
 
 
@@ -358,7 +392,7 @@ We will now attempt to use various models to predict the application time based 
 Let's use the prophet package to predict the future of the filing number of applications
 
 ```{r prophet prediction 1}
-#install.packages('prophet')
+
 library(prophet)
 
 Pred_Data <- T_Data %>% 
@@ -594,6 +628,15 @@ MSE
 
 
 # Appendix
+
+## Descriptive Stats
+```{r desc}
+library(compareGroups)
+res<-compareGroups(gender~Application_time, data=T_Data)
+res
+res<-compareGroups(race~Application_time, data=T_Data)
+res
+```
 
 ## Tree model Summary 
 

@@ -22,7 +22,6 @@ First we need to load the basic packages for the manipulation of data.
 Other packages will be loaded as needed.
 
 ``` r
-#library(tidyverse)
 library(dplyr)
 ```
 
@@ -65,8 +64,17 @@ library(lubridate)
     ##     date, intersect, setdiff, union
 
 ``` r
-#library(tsibble)
 library(ggplot2)
+  
+#for first time use
+#install.packages('compareGroups')
+#install.packages('webr')
+#install.packages('prophet')
+#install.packages('survival')
+
+#archive
+#library(tsibble)
+#library(tidyverse)
 ```
 
 ### Load data
@@ -397,8 +405,6 @@ PD = T_Data %>%
     ## `.groups` argument.
 
 ``` r
-#install.packages('webr')
-
 library(webr)
 PieDonut(PD, aes(gender,race, count=n), title = "Patent Examiners by Race & Gender",r0 = 0.45, r1 = 0.9, addDonutLabel= TRUE )
 ```
@@ -500,12 +506,21 @@ are more applications in one year than another
 ``` r
 hists=ggplot(T_Data, aes(x=filing_year))+
   geom_histogram(bins = 30)+
-  facet_grid(T_Data$tc)+
-  ggtitle("Histogram of Application Length in Days.")
+  ggtitle("Histogram of Application filing year.")
 hists
 ```
 
-![](Group-Assignment_files/figure-gfm/histogram%20distribtion%20ethnicity%202-1.png)<!-- -->
+![](Group-Assignment_files/figure-gfm/histogram%20distribtion%20ethnicity%202-1-1.png)<!-- -->
+
+``` r
+hists=ggplot(T_Data, aes(x=filing_year))+
+  geom_histogram(bins = 30)+
+  facet_grid(T_Data$tc)+
+  ggtitle("Histogram of Application filing year.")
+hists
+```
+
+![](Group-Assignment_files/figure-gfm/histogram%20distribtion%20ethnicity%202-2-1.png)<!-- -->
 
 Similarly let’s look at the distribution of approval years
 
@@ -584,6 +599,8 @@ library(tidyverse)
     ## ✖ lubridate::union()       masks base::union()
 
 ``` r
+library(ggpubr)
+
 T_Data$race_gender=paste(T_Data$race,T_Data$gender)
 T_Data$race_gender=as.factor(T_Data$race_gender)
 
@@ -597,6 +614,13 @@ T_Data %>%
 
 ![](Group-Assignment_files/figure-gfm/Violin%20plots-1.png)<!-- -->
 
+``` r
+ggboxplot(T_Data, x= 'race_gender', y='Application_time',color='race_gender',xlab=FALSE,ylab="Application Time (in Days)")+
+  rotate_x_text(45)
+```
+
+![](Group-Assignment_files/figure-gfm/box%20plots-1.png)<!-- -->
+
 Based on the graphs we can see a similar pattern for application time,
 where all tcs have a steadliy decreasing application wait time. However,
 this is likely a right censoring problem as the applications that are
@@ -609,6 +633,50 @@ on the amount of time ofr a patent applcation.
 drop <- c("race_gender")
 T_Data = T_Data[,!(names(T_Data) %in% drop)]
 ```
+
+## Average Comparisons
+
+Let’s compare the averages between groups
+
+``` r
+t=t.test(Application_time ~ gender, data = T_Data, var.equal = FALSE)
+summary(t)
+```
+
+    ##             Length Class  Mode     
+    ## statistic   1      -none- numeric  
+    ## parameter   1      -none- numeric  
+    ## p.value     1      -none- numeric  
+    ## conf.int    2      -none- numeric  
+    ## estimate    2      -none- numeric  
+    ## null.value  1      -none- numeric  
+    ## stderr      1      -none- numeric  
+    ## alternative 1      -none- character
+    ## method      1      -none- character
+    ## data.name   1      -none- character
+
+``` r
+t=aov(Application_time ~ race, data = T_Data)
+summary(t)
+```
+
+    ##                  Df    Sum Sq  Mean Sq F value   Pr(>F)    
+    ## race              3 3.174e+07 10579703   10.86 3.98e-07 ***
+    ## Residuals   1363982 1.329e+12   974604                     
+    ## ---
+    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+``` r
+t=aov(Application_time ~ race+gender, data = T_Data)
+summary(t)
+```
+
+    ##                  Df    Sum Sq  Mean Sq F value   Pr(>F)    
+    ## race              3 3.174e+07 10579703  10.855 3.98e-07 ***
+    ## gender            1 1.810e+06  1809621   1.857    0.173    
+    ## Residuals   1363981 1.329e+12   974604                     
+    ## ---
+    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
 ## PCA Analaysis
 
@@ -630,7 +698,6 @@ Let’s use the prophet package to predict the future of the filing number
 of applications
 
 ``` r
-#install.packages('prophet')
 library(prophet)
 ```
 
@@ -685,12 +752,12 @@ tail(forecast[c('ds', 'yhat', 'yhat_lower', 'yhat_upper')])
 ```
 
     ##                       ds      yhat yhat_lower yhat_upper
-    ## 5821 2017-12-26 19:00:00 1136.5869  817.74603  1473.2097
-    ## 5822 2017-12-27 19:00:00  443.6840   56.04380   813.0540
-    ## 5823 2017-12-28 19:00:00  455.3918   97.81820   807.5841
-    ## 5824 2017-12-29 19:00:00  274.3422  -88.26362   639.1719
-    ## 5825 2017-12-30 19:00:00  225.2376 -127.66719   586.9678
-    ## 5826 2017-12-31 19:00:00  533.0541  204.22284   876.7144
+    ## 5821 2017-12-26 19:00:00 1136.5869  785.78012  1467.6499
+    ## 5822 2017-12-27 19:00:00  443.6840   66.88709   782.1364
+    ## 5823 2017-12-28 19:00:00  455.3918  108.27581   801.9341
+    ## 5824 2017-12-29 19:00:00  274.3422  -77.78597   653.2509
+    ## 5825 2017-12-30 19:00:00  225.2376 -114.22725   584.5684
+    ## 5826 2017-12-31 19:00:00  533.0541  176.14621   866.8047
 
 ``` r
 plot(m, forecast)
@@ -1027,6 +1094,39 @@ MSE
 
 # Appendix
 
+## Descriptive Stats
+
+``` r
+library(compareGroups)
+res<-compareGroups(gender~Application_time, data=T_Data)
+res
+```
+
+    ## 
+    ## 
+    ## -------- Summary of results by groups of 'gender'---------
+    ## 
+    ## 
+    ##   var              N       p.value method            selection
+    ## 1 Application_time 1363986 0.096*  continuous normal ALL      
+    ## -----
+    ## Signif. codes:  0 '**' 0.05 '*' 0.1 ' ' 1
+
+``` r
+res<-compareGroups(race~Application_time, data=T_Data)
+res
+```
+
+    ## 
+    ## 
+    ## -------- Summary of results by groups of 'race'---------
+    ## 
+    ## 
+    ##   var              N       p.value  method            selection
+    ## 1 Application_time 1363986 <0.001** continuous normal ALL      
+    ## -----
+    ## Signif. codes:  0 '**' 0.05 '*' 0.1 ' ' 1
+
 ## Tree model Summary
 
 ``` r
@@ -1039,10 +1139,10 @@ summary(optimal_tree)
     ##   n= 1363986 
     ## 
     ##             CP nsplit rel error    xerror        xstd
-    ## 1 2.677460e-05      0 1.0000000 1.0000023 0.001992320
-    ## 2 1.797278e-05      3 0.9999197 0.9999293 0.001991761
-    ## 3 1.166076e-05      4 0.9999017 0.9999182 0.001991763
-    ## 4 1.000000e-05      5 0.9998900 0.9999111 0.001991740
+    ## 1 2.677460e-05      0 1.0000000 1.0000012 0.001992319
+    ## 2 1.797278e-05      3 0.9999197 0.9999273 0.001991757
+    ## 3 1.166076e-05      4 0.9999017 0.9999132 0.001991759
+    ## 4 1.000000e-05      5 0.9998900 0.9999042 0.001991728
     ## 
     ## Variable importance
     ##   race gender 
