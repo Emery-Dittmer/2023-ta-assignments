@@ -37,6 +37,7 @@ library(ggplot2)
 #install.packages('prophet')
 #install.packages('survival')
 #install.packages('ggord')
+#install.packages('pastecs')
 
 #archive
 #library(tsibble)
@@ -218,13 +219,21 @@ Temp_data <- T_Temp %>%
     )
 Temp_data
 ```
-```{r summary 3}
+```{r summary 1}
 summary(Aside)
 ```
 
 ```{r summary 2}
 summary(T_Data)
 ```
+
+```{r summary 3}
+library(pastecs)
+stat.desc(T_Data)
+```
+
+
+
 
 let's make a quick pie chart to vislize the data
 ```{r pie chart}
@@ -385,7 +394,7 @@ Let's compare the averages between groups. First we will get some averages
 aggregate(T_Data$Application_time, list(T_Data$gender), FUN=mean) 
 aggregate(T_Data$Application_time, list(T_Data$race), FUN=mean) 
 aggregate(T_Data$Application_time, list(T_Data$gender,T_Data$race), FUN=mean) 
-
+sd(T_Data$Application_time)
 ```
 Next, we will run some statistical testing on them
 ```{r compare averages 2 }

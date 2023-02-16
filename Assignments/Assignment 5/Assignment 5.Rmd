@@ -433,7 +433,7 @@ M_Data_Test <- M_Data_Test %>%
 
 ```{r Femal prediction}
 m_F<-prophet(F_Data_Train,holidays=holidays)
-future <- make_future_dataframe(m_F, periods = 365)
+future <- make_future_dataframe(m_F, periods = 720)
 forecast_F <- predict(m_F, future)
 plot(m_F,forecast_F)
 ```

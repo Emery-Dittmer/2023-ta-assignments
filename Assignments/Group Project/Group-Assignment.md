@@ -72,6 +72,7 @@ library(ggplot2)
 #install.packages('prophet')
 #install.packages('survival')
 #install.packages('ggord')
+#install.packages('pastecs')
 
 #archive
 #library(tsibble)
@@ -394,6 +395,67 @@ summary(T_Data)
     ##  3rd Qu.:3472     
     ##  Max.   :6064
 
+``` r
+library(pastecs)
+```
+
+    ## 
+    ## Attaching package: 'pastecs'
+
+    ## The following objects are masked from 'package:dplyr':
+    ## 
+    ##     first, last
+
+``` r
+stat.desc(T_Data)
+```
+
+    ##               examiner_id  filing_date disposal_type tc gender race
+    ## nbr.val      1.363986e+06 1.363986e+06            NA NA     NA   NA
+    ## nbr.null     0.000000e+00 0.000000e+00            NA NA     NA   NA
+    ## nbr.na       0.000000e+00 0.000000e+00            NA NA     NA   NA
+    ## min          5.901200e+04 1.095800e+04            NA NA     NA   NA
+    ## max          9.998800e+04 1.711900e+04            NA NA     NA   NA
+    ## range        4.097600e+04 6.161000e+03            NA NA     NA   NA
+    ## sum          1.075394e+11 1.881539e+10            NA NA     NA   NA
+    ## median       7.534100e+04 1.383000e+04            NA NA     NA   NA
+    ## mean         7.884200e+04 1.379442e+04            NA NA     NA   NA
+    ## SE.mean      1.168255e+01 1.308993e+00            NA NA     NA   NA
+    ## CI.mean.0.95 2.289740e+01 2.565581e+00            NA NA     NA   NA
+    ## var          1.861595e+08 2.337139e+06            NA NA     NA   NA
+    ## std.dev      1.364403e+04 1.528770e+03            NA NA     NA   NA
+    ## coef.var     1.730553e-01 1.108253e-01            NA NA     NA   NA
+    ##               tenure_days    Date_time Application_time  filing_year
+    ## nbr.val      1.363986e+06 1.363986e+06     1.363986e+06 1.363986e+06
+    ## nbr.null     0.000000e+00 0.000000e+00     0.000000e+00 0.000000e+00
+    ## nbr.na       0.000000e+00 0.000000e+00     0.000000e+00 0.000000e+00
+    ## min          2.160000e+02 1.110100e+04     1.100000e+01 2.000000e+03
+    ## max          6.518000e+03 1.716700e+04     6.187000e+03 2.016000e+03
+    ## range        6.302000e+03 6.066000e+03     6.176000e+03 1.600000e+01
+    ## sum          7.732965e+09 2.084583e+10     2.030445e+09 2.737879e+09
+    ## median       6.209000e+03 1.553400e+04     1.213000e+03 2.007000e+03
+    ## mean         5.669387e+03 1.528303e+04     1.488612e+03 2.007263e+03
+    ## SE.mean      8.189586e-01 1.167649e+00     8.453059e-01 3.587817e-03
+    ## CI.mean.0.95 1.605131e+00 2.288553e+00     1.656771e+00 7.031998e-03
+    ## var          9.148162e+05 1.859666e+06     9.746253e+05 1.755781e+01
+    ## std.dev      9.564603e+02 1.363696e+03     9.872311e+02 4.190205e+00
+    ## coef.var     1.687061e-01 8.922942e-02     6.631892e-01 2.087521e-03
+    ##              descision_year   start_data Approx_Tenue_Days
+    ## nbr.val        1.363986e+06 1.363986e+06      1.363986e+06
+    ## nbr.null       0.000000e+00 0.000000e+00      5.189000e+03
+    ## nbr.na         0.000000e+00 0.000000e+00      0.000000e+00
+    ## min            2.000000e+03 1.110100e+04      0.000000e+00
+    ## max            2.017000e+03 1.713400e+04      6.064000e+03
+    ## range          1.700000e+01 6.033000e+03      6.064000e+03
+    ## sum            2.743433e+09 1.756582e+10      3.280017e+09
+    ## median         2.012000e+03 1.269100e+04      2.215000e+03
+    ## mean           2.011335e+03 1.287830e+04      2.404729e+03
+    ## SE.mean        3.191228e-03 1.214114e+00      1.266346e+00
+    ## CI.mean.0.95   6.254698e-03 2.379623e+00      2.481995e+00
+    ## var            1.389075e+01 2.010616e+06      2.187331e+06
+    ## std.dev        3.727030e+00 1.417962e+03      1.478963e+03
+    ## coef.var       1.853013e-03 1.101048e-01      6.150227e-01
+
 let’s make a quick pie chart to vislize the data
 
 ``` r
@@ -592,10 +654,13 @@ library(tidyverse)
     ## ✖ lubridate::as.difftime() masks base::as.difftime()
     ## ✖ lubridate::date()        masks base::date()
     ## ✖ lubridate::duration()    masks arrow::duration()
+    ## ✖ tidyr::extract()         masks pastecs::extract()
     ## ✖ dplyr::filter()          masks stats::filter()
+    ## ✖ pastecs::first()         masks dplyr::first()
     ## ✖ kableExtra::group_rows() masks dplyr::group_rows()
     ## ✖ lubridate::intersect()   masks base::intersect()
     ## ✖ dplyr::lag()             masks stats::lag()
+    ## ✖ pastecs::last()          masks dplyr::last()
     ## ✖ lubridate::setdiff()     masks base::setdiff()
     ## ✖ lubridate::union()       masks base::union()
 
@@ -685,6 +750,12 @@ aggregate(T_Data$Application_time, list(T_Data$gender,T_Data$race), FUN=mean)
     ## 6    male Hispanic 1499.927
     ## 7  female    white 1484.124
     ## 8    male    white 1494.860
+
+``` r
+sd(T_Data$Application_time)
+```
+
+    ## [1] 987.2311
 
 Next, we will run some statistical testing on them
 
