@@ -36,6 +36,7 @@ library(ggplot2)
 #install.packages('webr')
 #install.packages('prophet')
 #install.packages('survival')
+#install.packages('ggord')
 
 #archive
 #library(tsibble)
@@ -422,7 +423,7 @@ Pred_Data <- T_Data %>%
   group_by(Date_time) %>% 
   summarise(
     ds = as.POSIXct(min(Date_time)), # I have repeatedly attempted to change this assumption but have been unable to
-    y=n(),
+    y=mean(Application_time),
     )
 #Check for duplicates. If true then there are no duplicates
 length(unique(Pred_Data$ds)) == nrow(Pred_Data)
@@ -459,40 +460,59 @@ ggplot(forecast, aes(ds, yhat)) +
   ylab("y") +
   ggtitle("Forecast of length of application time")
 ```
-Let's try breaking these out a bit, since there seems to be 3 different trends
+Let's try breaking these out a bit into weekdays.
 ```{r prophet prediction plot2}
 Pred_Data$DOW=wday(Pred_Data$ds,week_start = 1, label=TRUE)
 
 # Plot the prophet forecast with the test data points
 ggplot(forecast, aes(ds, yhat)) +
-  geom_point(data = Pred_Data, aes(ds, y, color = DOW), size = 1,alpha=0.4) +
+  geom_point(data = Pred_Data, aes(ds, y, color = DOW), size = 1.5,alpha=0.4) +
   scale_color_brewer(palette = "Set1")+
   xlab("Date") +
   ylab("y") +
   ggtitle("Forecast of length of application time")
 ```
+This is shows that as time goes on the average patent application length is longer if the status update is on a Sunday or Thursday but farily consistent otherwise
 
-Let's try breaking these out a bit, since there seems to be 3 different trends
+Let's try breaking these out a bit, first by gender since there seems to be 3 different trends
 ```{r prophet prediction plot3}
-Pred_Data_low=App_data <- Pred_Data %>% 
-  filter(y<365)
-Pred_Data_med=App_data <- Pred_Data %>% 
-  filter(y>365 & y<800)
 
-Pred_Data_high=App_data <- Pred_Data %>% 
-  filter(y>800)
+Pred_Data_M <- T_Data %>% 
+  group_by(Date_time,gender) %>% 
+  summarise(
+    ds = as.POSIXct(min(Date_time)),
+    y=mean(Application_time)
+    )%>% 
+  filter(gender=="male")
 
-# Plot the prophet forecast with the test data points
-ggplot(forecast, aes(ds, yhat)) +
-  geom_point(data = Pred_Data_low, aes(ds, y, color = "low"), size = 2,alpha=0.2) +
-  geom_point(data = Pred_Data_med, aes(ds, y, color = "med"), size = 2,alpha=0.2) +
-  geom_point(data = Pred_Data_high, aes(ds, y, color = "high"), size = 2,alpha=0.2) +
-  scale_color_manual(values = c("blue", "red", "black"), labels = c("high", "low","med"))+
-  xlab("Date") +
-  ylab("y") +
-  ggtitle("Forecast of length of application time")
+Pred_Data_F <- T_Data %>% 
+  group_by(Date_time,gender) %>% 
+  summarise(
+    ds = as.POSIXct(min(Date_time)),
+    y=mean(Application_time)
+    )%>% 
+  filter(gender=="female")
+
+m_M<-prophet(Pred_Data_M)
+future <- make_future_dataframe(m_M, periods = 720)
+forecast_M <- predict(m_M, future)
+
+m_F<-prophet(Pred_Data_F)
+future <- make_future_dataframe(m_F, periods = 720)
+forecast_F <- predict(m_F, future)
+
 ```
 
+```{r prophet prediction plot 5}
+ggplot(forecast, aes(ds, yhat)) +
+  geom_ribbon(data = forecast_F,aes(ymin=yhat_lower,ymax=yhat_upper), alpha=0.4, color = "lightpink")+
+  geom_ribbon(data = forecast_M,aes(ymin=yhat_lower,ymax=yhat_upper), alpha=0.1, color = "lightblue")+
+  geom_point(data = Pred_Data_F, aes(ds, y, color = "Female"), size = 2,alpha=.2) +
+  geom_point(data = Pred_Data_M, aes(ds, y, color = "Male"), size = 2,alpha=.2) +
+  xlab("Date") +
+  ylab("y") +
+  ggtitle("Forecast of Male vs. Femal Average Application Days")
+```
 
 
 ## Tree model for predictive 
@@ -624,7 +644,6 @@ mylda[4]
 mylda=lda(Application_time~gender+race,data = T_Data)
 mylda[4]
 
-
 ```
 
  
@@ -660,6 +679,92 @@ res
 res<-compareGroups(race~Application_time, data=T_Data)
 res
 ```
+
+## predictions
+
+We will make predictions based on productivity.
+
+```{r prophet prediction-update 1}
+
+library(prophet)
+
+Pred_Data <- T_Data %>% 
+  group_by(Date_time) %>% 
+  summarise(
+    ds = as.POSIXct(min(Date_time)), # I have repeatedly attempted to change this assumption but have been unable to
+    y=n(),
+    )
+#Check for duplicates. If true then there are no duplicates
+length(unique(Pred_Data$ds)) == nrow(Pred_Data)
+
+m<-prophet(Pred_Data)
+future <- make_future_dataframe(m, periods = 365)
+tail(future)
+
+```
+Now we can make some predictions
+
+```{r prophet prediction-update 2}
+forecast <- predict(m, future)
+tail(forecast[c('ds', 'yhat', 'yhat_lower', 'yhat_upper')])
+```
+
+```{r prophet prediction-update 3}
+plot(m, forecast)
+```
+We can look at the key feautres effecting the model
+```{r prophet prediction-update 4}
+prophet_plot_components(m, forecast)
+```
+and then visualize the predictions!
+
+```{r prophet prediction-update plot}
+# Plot the prophet forecast with the test data points
+ggplot(forecast, aes(ds, yhat)) +
+  geom_ribbon(data = forecast,aes(ymin=yhat_lower,ymax=yhat_upper), alpha=0.1, color = "grey71")+
+  geom_point(data = Pred_Data, aes(ds, y, color = "train data"), size = 2,alpha=0.2) +
+  geom_line(aes(color = "prophet forecast",alpha=0.001)) +
+  scale_color_manual(values = c("blue", "red", "black"), labels = c("Forecast", "Test data"))+
+  xlab("Date") +
+  ylab("y") +
+  ggtitle("Forecast of length of application time")
+```
+Let's try breaking these out a bit, since there seems to be 3 different trends
+```{r prophet prediction-update plot2}
+Pred_Data$DOW=wday(Pred_Data$ds,week_start = 1, label=TRUE)
+
+# Plot the prophet forecast with the test data points
+ggplot(forecast, aes(ds, yhat)) +
+  geom_point(data = Pred_Data, aes(ds, y, color = DOW), size = 1,alpha=0.4) +
+  scale_color_brewer(palette = "Set1")+
+  xlab("Date") +
+  ylab("y") +
+  ggtitle("Forecast of length of application time")
+```
+
+Let's try breaking these out a bit, since there seems to be 3 different trends
+```{r prophet prediction-update plot3}
+Pred_Data_low=App_data <- Pred_Data %>% 
+  filter(y<365)
+Pred_Data_med=App_data <- Pred_Data %>% 
+  filter(y>365 & y<800)
+
+Pred_Data_high=App_data <- Pred_Data %>% 
+  filter(y>800)
+
+# Plot the prophet forecast with the test data points
+ggplot(forecast, aes(ds, yhat)) +
+  geom_point(data = Pred_Data_low, aes(ds, y, color = "low"), size = 2,alpha=0.2) +
+  geom_point(data = Pred_Data_med, aes(ds, y, color = "med"), size = 2,alpha=0.2) +
+  geom_point(data = Pred_Data_high, aes(ds, y, color = "high"), size = 2,alpha=0.2) +
+  scale_color_manual(values = c("blue", "red", "black"), labels = c("high", "low","med"))+
+  xlab("Date") +
+  ylab("y") +
+  ggtitle("Forecast of application status updates")
+```
+
+
+
 
 ## Tree model Summary 
 

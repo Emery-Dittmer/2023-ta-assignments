@@ -71,6 +71,7 @@ library(ggplot2)
 #install.packages('webr')
 #install.packages('prophet')
 #install.packages('survival')
+#install.packages('ggord')
 
 #archive
 #library(tsibble)
@@ -772,7 +773,7 @@ Pred_Data <- T_Data %>%
   group_by(Date_time) %>% 
   summarise(
     ds = as.POSIXct(min(Date_time)), # I have repeatedly attempted to change this assumption but have been unable to
-    y=n(),
+    y=mean(Application_time),
     )
 #Check for duplicates. If true then there are no duplicates
 length(unique(Pred_Data$ds)) == nrow(Pred_Data)
@@ -801,13 +802,13 @@ forecast <- predict(m, future)
 tail(forecast[c('ds', 'yhat', 'yhat_lower', 'yhat_upper')])
 ```
 
-    ##                       ds      yhat yhat_lower yhat_upper
-    ## 5821 2017-12-26 19:00:00 1136.5869  785.78012  1467.6499
-    ## 5822 2017-12-27 19:00:00  443.6840   66.88709   782.1364
-    ## 5823 2017-12-28 19:00:00  455.3918  108.27581   801.9341
-    ## 5824 2017-12-29 19:00:00  274.3422  -77.78597   653.2509
-    ## 5825 2017-12-30 19:00:00  225.2376 -114.22725   584.5684
-    ## 5826 2017-12-31 19:00:00  533.0541  176.14621   866.8047
+    ##                       ds     yhat yhat_lower yhat_upper
+    ## 5821 2017-12-26 19:00:00 1537.969   1039.376   2006.257
+    ## 5822 2017-12-27 19:00:00 1575.114   1039.623   2054.390
+    ## 5823 2017-12-28 19:00:00 1991.977   1498.965   2482.493
+    ## 5824 2017-12-29 19:00:00 1572.250   1068.335   2118.777
+    ## 5825 2017-12-30 19:00:00 1574.136   1089.128   2086.413
+    ## 5826 2017-12-31 19:00:00 1888.422   1383.422   2366.724
 
 ``` r
 plot(m, forecast)
@@ -836,15 +837,14 @@ ggplot(forecast, aes(ds, yhat)) +
 ```
 
 ![](Group-Assignment_files/figure-gfm/prophet%20prediction%20plot-1.png)<!-- -->
-Let’s try breaking these out a bit, since there seems to be 3 different
-trends
+Let’s try breaking these out a bit into weekdays.
 
 ``` r
 Pred_Data$DOW=wday(Pred_Data$ds,week_start = 1, label=TRUE)
 
 # Plot the prophet forecast with the test data points
 ggplot(forecast, aes(ds, yhat)) +
-  geom_point(data = Pred_Data, aes(ds, y, color = DOW), size = 1,alpha=0.4) +
+  geom_point(data = Pred_Data, aes(ds, y, color = DOW), size = 1.5,alpha=0.4) +
   scale_color_brewer(palette = "Set1")+
   xlab("Date") +
   ylab("y") +
@@ -852,31 +852,61 @@ ggplot(forecast, aes(ds, yhat)) +
 ```
 
 ![](Group-Assignment_files/figure-gfm/prophet%20prediction%20plot2-1.png)<!-- -->
+This is shows that as time goes on the average patent application length
+is longer if the status update is on a Sunday or Thursday but farily
+consistent otherwise
 
-Let’s try breaking these out a bit, since there seems to be 3 different
-trends
+Let’s try breaking these out a bit, first by gender since there seems to
+be 3 different trends
 
 ``` r
-Pred_Data_low=App_data <- Pred_Data %>% 
-  filter(y<365)
-Pred_Data_med=App_data <- Pred_Data %>% 
-  filter(y>365 & y<800)
-
-Pred_Data_high=App_data <- Pred_Data %>% 
-  filter(y>800)
-
-# Plot the prophet forecast with the test data points
-ggplot(forecast, aes(ds, yhat)) +
-  geom_point(data = Pred_Data_low, aes(ds, y, color = "low"), size = 2,alpha=0.2) +
-  geom_point(data = Pred_Data_med, aes(ds, y, color = "med"), size = 2,alpha=0.2) +
-  geom_point(data = Pred_Data_high, aes(ds, y, color = "high"), size = 2,alpha=0.2) +
-  scale_color_manual(values = c("blue", "red", "black"), labels = c("high", "low","med"))+
-  xlab("Date") +
-  ylab("y") +
-  ggtitle("Forecast of length of application time")
+Pred_Data_M <- T_Data %>% 
+  group_by(Date_time,gender) %>% 
+  summarise(
+    ds = as.POSIXct(min(Date_time)),
+    y=mean(Application_time)
+    )%>% 
+  filter(gender=="male")
 ```
 
-![](Group-Assignment_files/figure-gfm/prophet%20prediction%20plot3-1.png)<!-- -->
+    ## `summarise()` has grouped output by 'Date_time'. You can override using the
+    ## `.groups` argument.
+
+``` r
+Pred_Data_F <- T_Data %>% 
+  group_by(Date_time,gender) %>% 
+  summarise(
+    ds = as.POSIXct(min(Date_time)),
+    y=mean(Application_time)
+    )%>% 
+  filter(gender=="female")
+```
+
+    ## `summarise()` has grouped output by 'Date_time'. You can override using the
+    ## `.groups` argument.
+
+``` r
+m_M<-prophet(Pred_Data_M)
+future <- make_future_dataframe(m_M, periods = 720)
+forecast_M <- predict(m_M, future)
+
+m_F<-prophet(Pred_Data_F)
+future <- make_future_dataframe(m_F, periods = 720)
+forecast_F <- predict(m_F, future)
+```
+
+``` r
+ggplot(forecast, aes(ds, yhat)) +
+  geom_ribbon(data = forecast_F,aes(ymin=yhat_lower,ymax=yhat_upper), alpha=0.4, color = "lightpink")+
+  geom_ribbon(data = forecast_M,aes(ymin=yhat_lower,ymax=yhat_upper), alpha=0.1, color = "lightblue")+
+  geom_point(data = Pred_Data_F, aes(ds, y, color = "Female"), size = 2,alpha=.2) +
+  geom_point(data = Pred_Data_M, aes(ds, y, color = "Male"), size = 2,alpha=.2) +
+  xlab("Date") +
+  ylab("y") +
+  ggtitle("Forecast of Male vs. Femal Average Application Days")
+```
+
+![](Group-Assignment_files/figure-gfm/prophet%20prediction%20plot%205-1.png)<!-- -->
 
 ## Tree model for predictive
 
@@ -1177,6 +1207,123 @@ res
     ## -----
     ## Signif. codes:  0 '**' 0.05 '*' 0.1 ' ' 1
 
+## predictions
+
+We will make predictions based on productivity.
+
+``` r
+library(prophet)
+
+Pred_Data <- T_Data %>% 
+  group_by(Date_time) %>% 
+  summarise(
+    ds = as.POSIXct(min(Date_time)), # I have repeatedly attempted to change this assumption but have been unable to
+    y=n(),
+    )
+#Check for duplicates. If true then there are no duplicates
+length(unique(Pred_Data$ds)) == nrow(Pred_Data)
+```
+
+    ## [1] TRUE
+
+``` r
+m<-prophet(Pred_Data)
+future <- make_future_dataframe(m, periods = 365)
+tail(future)
+```
+
+    ##                       ds
+    ## 5821 2017-12-26 19:00:00
+    ## 5822 2017-12-27 19:00:00
+    ## 5823 2017-12-28 19:00:00
+    ## 5824 2017-12-29 19:00:00
+    ## 5825 2017-12-30 19:00:00
+    ## 5826 2017-12-31 19:00:00
+
+Now we can make some predictions
+
+``` r
+forecast <- predict(m, future)
+tail(forecast[c('ds', 'yhat', 'yhat_lower', 'yhat_upper')])
+```
+
+    ##                       ds      yhat yhat_lower yhat_upper
+    ## 5821 2017-12-26 19:00:00 1136.5869  790.59088  1491.7980
+    ## 5822 2017-12-27 19:00:00  443.6840   93.74479   817.7561
+    ## 5823 2017-12-28 19:00:00  455.3918   91.36617   801.7958
+    ## 5824 2017-12-29 19:00:00  274.3422  -82.07572   616.6203
+    ## 5825 2017-12-30 19:00:00  225.2376 -139.41310   568.4151
+    ## 5826 2017-12-31 19:00:00  533.0541  172.11100   907.9425
+
+``` r
+plot(m, forecast)
+```
+
+![](Group-Assignment_files/figure-gfm/prophet%20prediction-update%203-1.png)<!-- -->
+We can look at the key feautres effecting the model
+
+``` r
+prophet_plot_components(m, forecast)
+```
+
+![](Group-Assignment_files/figure-gfm/prophet%20prediction-update%204-1.png)<!-- -->
+and then visualize the predictions!
+
+``` r
+# Plot the prophet forecast with the test data points
+ggplot(forecast, aes(ds, yhat)) +
+  geom_ribbon(data = forecast,aes(ymin=yhat_lower,ymax=yhat_upper), alpha=0.1, color = "grey71")+
+  geom_point(data = Pred_Data, aes(ds, y, color = "train data"), size = 2,alpha=0.2) +
+  geom_line(aes(color = "prophet forecast",alpha=0.001)) +
+  scale_color_manual(values = c("blue", "red", "black"), labels = c("Forecast", "Test data"))+
+  xlab("Date") +
+  ylab("y") +
+  ggtitle("Forecast of length of application time")
+```
+
+![](Group-Assignment_files/figure-gfm/prophet%20prediction-update%20plot-1.png)<!-- -->
+Let’s try breaking these out a bit, since there seems to be 3 different
+trends
+
+``` r
+Pred_Data$DOW=wday(Pred_Data$ds,week_start = 1, label=TRUE)
+
+# Plot the prophet forecast with the test data points
+ggplot(forecast, aes(ds, yhat)) +
+  geom_point(data = Pred_Data, aes(ds, y, color = DOW), size = 1,alpha=0.4) +
+  scale_color_brewer(palette = "Set1")+
+  xlab("Date") +
+  ylab("y") +
+  ggtitle("Forecast of length of application time")
+```
+
+![](Group-Assignment_files/figure-gfm/prophet%20prediction-update%20plot2-1.png)<!-- -->
+
+Let’s try breaking these out a bit, since there seems to be 3 different
+trends
+
+``` r
+Pred_Data_low=App_data <- Pred_Data %>% 
+  filter(y<365)
+Pred_Data_med=App_data <- Pred_Data %>% 
+  filter(y>365 & y<800)
+
+Pred_Data_high=App_data <- Pred_Data %>% 
+  filter(y>800)
+
+# Plot the prophet forecast with the test data points
+ggplot(forecast, aes(ds, yhat)) +
+  geom_point(data = Pred_Data_low, aes(ds, y, color = "low"), size = 2,alpha=0.2) +
+  geom_point(data = Pred_Data_med, aes(ds, y, color = "med"), size = 2,alpha=0.2) +
+  geom_point(data = Pred_Data_high, aes(ds, y, color = "high"), size = 2,alpha=0.2) +
+  scale_color_manual(values = c("blue", "red", "black"), labels = c("high", "low","med"))+
+  xlab("Date") +
+  ylab("y") +
+  ggtitle("Forecast of application status updates")
+```
+
+![](Group-Assignment_files/figure-gfm/prophet%20prediction-update%20plot3-1.png)<!-- -->
+
 ## Tree model Summary
 
 ``` r
@@ -1189,10 +1336,10 @@ summary(optimal_tree)
     ##   n= 1363986 
     ## 
     ##             CP nsplit rel error    xerror        xstd
-    ## 1 2.677460e-05      0 1.0000000 1.0000012 0.001992319
-    ## 2 1.797278e-05      3 0.9999197 0.9999273 0.001991757
-    ## 3 1.166076e-05      4 0.9999017 0.9999132 0.001991759
-    ## 4 1.000000e-05      5 0.9998900 0.9999042 0.001991728
+    ## 1 2.677460e-05      0 1.0000000 1.0000017 0.001992322
+    ## 2 1.797278e-05      3 0.9999197 0.9999265 0.001991758
+    ## 3 1.166076e-05      4 0.9999017 0.9999236 0.001991778
+    ## 4 1.000000e-05      5 0.9998900 0.9999097 0.001991743
     ## 
     ## Variable importance
     ##   race gender 
