@@ -38,6 +38,7 @@ Now we load in the data. The app_gender_rate data is the primary data we will us
 
 ```{r loading}
 App_data=read_parquet('apps_gender_rate.parquet')
+total_rows=nrow(App_data)
 ```
 
 ## Clean Data
@@ -55,6 +56,8 @@ App_data <- App_data %>%
 # Remove Nas from race
 App_data <- App_data %>% 
   filter(!is.na(race))
+
+nrow(App_data)/total_rows*100
   
 # Clean Date format
 #get the date format cleaned
@@ -84,17 +87,22 @@ Then make a new field to compute time.
 #create new data fame with all manipulations. App_Data held as clean data
 T_Data=App_data
 
+
+Aside <- T_Data %>% 
+  filter(Date_time>= as.Date("2017-01-01"))
+
 #Remove all the data we will not need based on application status
 exclude_list=c("PEND")
 T_Data <- T_Data %>%
   filter(!disposal_type %in% exclude_list)
-
+#Data Remain
+nrow(T_Data)/nrow(App_data)*100
 ```
 
-Now we can remove the data from before 2017 since it has high levels of outliers and bad data.
+Now we can remove the data from after 2017 since it has high levels of outliers and bad data.
 
 ```{r date filters}
-#remove all values before 2017
+#remove all values after 2017
 T_Data <- T_Data %>% 
   filter(Date_time<= as.Date("2017-01-01"))
 
@@ -111,6 +119,11 @@ Now we can remove some un-needed datacolumns. These are saved so we can merge th
 
 keep=c("filing_date","disposal_type","tc","gender","race","tenure_days","Date_time","examiner_id") #examiner_art_unit not kept as produces too man variables for packages
 T_Data = subset(T_Data, select = keep)
+
+#=The other gender has been giving issues will be maintained in future in original dataset
+T_Data_OG=T_Data
+T_Data <- T_Data %>% 
+  filter(race != "other")
 
 
 ```
@@ -186,16 +199,33 @@ Now that the data is in a clean and useable format let's examine the data more c
 # 
 library(vtable)
 # print(sumtable(T_Data))
-Temp_data <- T_Data %>% 
+T_Temp=distinct(T_Data_OG, examiner_id, .keep_all = TRUE)
+Temp_data <- T_Temp %>% 
   group_by(gender,race) %>% 
   summarise(
     count = n()
     )
 Temp_data
+```
+```{r summary 3}
+summary(Aside)
+```
+
+```{r summary 2}
 summary(T_Data)
 ```
 
+let's make a quick pie chart to vislize the data
+```{r pie chart}
+PD = T_Data %>%
+  group_by(gender, race) %>%
+  summarise(n = n())
 
+#install.packages('webr')
+
+library(webr)
+PieDonut(PD, aes(gender,race, count=n), title = "Patent Examiners by Race & Gender",r0 = 0.45, r1 = 0.9, addDonutLabel= TRUE )
+```
 
 Now lets look at the correlation plots
 ```{r g gally}
@@ -337,6 +367,8 @@ Pred_Data <- T_Data %>%
     ds = as.POSIXct(min(Date_time)), # I have repeatedly attempted to change this assumption but have been unable to
     y=n(),
     )
+#Check for duplicates. If true then there are no duplicates
+length(unique(Pred_Data$ds)) == nrow(Pred_Data)
 
 m<-prophet(Pred_Data)
 future <- make_future_dataframe(m, periods = 365)
@@ -368,8 +400,42 @@ ggplot(forecast, aes(ds, yhat)) +
   scale_color_manual(values = c("blue", "red", "black"), labels = c("Forecast", "Test data"))+
   xlab("Date") +
   ylab("y") +
-  ggtitle("Forecast of number of descisions")
+  ggtitle("Forecast of length of application time")
 ```
+Let's try breaking these out a bit, since there seems to be 3 different trends
+```{r prophet prediction plot2}
+Pred_Data$DOW=wday(Pred_Data$ds,week_start = 1, label=TRUE)
+
+# Plot the prophet forecast with the test data points
+ggplot(forecast, aes(ds, yhat)) +
+  geom_point(data = Pred_Data, aes(ds, y, color = DOW), size = 1,alpha=0.4) +
+  scale_color_brewer(palette = "Set1")+
+  xlab("Date") +
+  ylab("y") +
+  ggtitle("Forecast of length of application time")
+```
+
+Let's try breaking these out a bit, since there seems to be 3 different trends
+```{r prophet prediction plot3}
+Pred_Data_low=App_data <- Pred_Data %>% 
+  filter(y<365)
+Pred_Data_med=App_data <- Pred_Data %>% 
+  filter(y>365 & y<800)
+
+Pred_Data_high=App_data <- Pred_Data %>% 
+  filter(y>800)
+
+# Plot the prophet forecast with the test data points
+ggplot(forecast, aes(ds, yhat)) +
+  geom_point(data = Pred_Data_low, aes(ds, y, color = "low"), size = 2,alpha=0.2) +
+  geom_point(data = Pred_Data_med, aes(ds, y, color = "med"), size = 2,alpha=0.2) +
+  geom_point(data = Pred_Data_high, aes(ds, y, color = "high"), size = 2,alpha=0.2) +
+  scale_color_manual(values = c("blue", "red", "black"), labels = c("high", "low","med"))+
+  xlab("Date") +
+  ylab("y") +
+  ggtitle("Forecast of length of application time")
+```
+
 
 
 ## Tree model for predictive 
@@ -429,6 +495,7 @@ T_Data <- T_Data %>%
   mutate(
     status = recode(disposal_type, `ABN` = 0, `ISS` = 1)
   )
+
 
 survfit(Surv(Application_time) ~ 1, data = T_Data) %>% 
   ggsurvfit() +
@@ -534,16 +601,77 @@ MSE
 summary(optimal_tree)
 ```
 
+## Survival
+```{r survival appendix 1}
+library(survival)
+library(lubridate)
+library(ggsurvfit)
+library(gtsummary)
+library(tidycmprsk)
+
+T_Data_OG<- T_Data_OG %>% 
+  mutate(
+    status = recode(disposal_type, `ABN` = 0, `ISS` = 1)
+  )
+
+T_Data_OG$Application_time <- T_Data_OG$Date_time - T_Data_OG$filing_date
+T_Data_OG$Application_time <- as.numeric(T_Data_OG$Application_time)
+
+survfit(Surv(Application_time) ~ 1, data = T_Data_OG) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Days",
+    y = "Overall survival probability"
+  ) + 
+  add_confidence_interval()+
+  add_risktable()
+```
+Looking at the gender effect
+```{r survival appendix 2}
+survfit(Surv(Application_time) ~ gender, data = T_Data_OG) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Days",
+    y = "Overall survival probability"
+  ) + 
+  add_confidence_interval()
+
+```
+
+looking at the ethnicity effects
+
+```{r survival appendix 3}
+
+survfit(Surv(Application_time) ~ race, data = T_Data_OG) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Days",
+    y = "Overall survival probability"
+  ) + 
+  add_confidence_interval()
+
+```
+
+
+```{r survival appendix 4}
+survfit(Surv(Application_time, status) ~ gender+race, data = T_Data_OG) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Days",
+    y = "Overall survival probability"
+  ) + 
+  add_confidence_interval()
+
+```
+
+
 ## LDA Summary
 
 ```{r lda summary full}
 #mylda
 ```
 
-## Clustering that did not work
-
-
-
+## Survival 
 
 ## Unused Code kept for reference.
 

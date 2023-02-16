@@ -78,6 +78,7 @@ traits such as gender and ethnicity.
 
 ``` r
 App_data=read_parquet('apps_gender_rate.parquet')
+total_rows=nrow(App_data)
 ```
 
 ## Clean Data
@@ -98,7 +99,13 @@ App_data <- App_data %>%
 # Remove Nas from race
 App_data <- App_data %>% 
   filter(!is.na(race))
-  
+
+nrow(App_data)/total_rows*100
+```
+
+    ## [1] 84.75668
+
+``` r
 # Clean Date format
 #get the date format cleaned
 App_data$Date_time=as.Date(App_data$appl_status_date, format="%d%b%Y")
@@ -134,17 +141,25 @@ compute time.
 #create new data fame with all manipulations. App_Data held as clean data
 T_Data=App_data
 
+
+Aside <- T_Data %>% 
+  filter(Date_time>= as.Date("2017-01-01"))
+
 #Remove all the data we will not need based on application status
 exclude_list=c("PEND")
 T_Data <- T_Data %>%
   filter(!disposal_type %in% exclude_list)
+#Data Remain
+nrow(T_Data)/nrow(App_data)*100
 ```
 
-Now we can remove the data from before 2017 since it has high levels of
+    ## [1] 83.85241
+
+Now we can remove the data from after 2017 since it has high levels of
 outliers and bad data.
 
 ``` r
-#remove all values before 2017
+#remove all values after 2017
 T_Data <- T_Data %>% 
   filter(Date_time<= as.Date("2017-01-01"))
 
@@ -165,6 +180,11 @@ merge these later if we need to
 
 keep=c("filing_date","disposal_type","tc","gender","race","tenure_days","Date_time","examiner_id") #examiner_art_unit not kept as produces too man variables for packages
 T_Data = subset(T_Data, select = keep)
+
+#=The other gender has been giving issues will be maintained in future in original dataset
+T_Data_OG=T_Data
+T_Data <- T_Data %>% 
+  filter(race != "other")
 ```
 
 Pen-ultimately we will change the data type on a few columns for
@@ -250,7 +270,8 @@ library(vtable)
 
 ``` r
 # print(sumtable(T_Data))
-Temp_data <- T_Data %>% 
+T_Temp=distinct(T_Data_OG, examiner_id, .keep_all = TRUE)
+Temp_data <- T_Temp %>% 
   group_by(gender,race) %>% 
   summarise(
     count = n()
@@ -266,50 +287,128 @@ Temp_data
 
     ## # A tibble: 9 × 3
     ## # Groups:   gender [2]
-    ##   gender race      count
-    ##   <fct>  <fct>     <int>
-    ## 1 female Asian    112599
-    ## 2 female black     22450
-    ## 3 female Hispanic  12772
-    ## 4 female white    305044
-    ## 5 male   Asian    212813
-    ## 6 male   black     25423
-    ## 7 male   Hispanic  25993
-    ## 8 male   other       993
-    ## 9 male   white    646892
+    ##   gender race     count
+    ##   <chr>  <chr>    <int>
+    ## 1 female Asian      358
+    ## 2 female black       67
+    ## 3 female Hispanic    62
+    ## 4 female white      967
+    ## 5 male   Asian      802
+    ## 6 male   black       97
+    ## 7 male   Hispanic   137
+    ## 8 male   other        2
+    ## 9 male   white     2254
+
+``` r
+summary(Aside)
+```
+
+    ##  application_number  filing_date         examiner_name_last examiner_name_first
+    ##  Length:255633      Min.   :2000-01-06   Length:255633      Length:255633      
+    ##  Class :character   1st Qu.:2013-11-01   Class :character   Class :character   
+    ##  Mode  :character   Median :2014-12-10   Mode  :character   Mode  :character   
+    ##                     Mean   :2014-05-15                                         
+    ##                     3rd Qu.:2015-10-23                                         
+    ##                     Max.   :2017-05-25                                         
+    ##                                                                                
+    ##  examiner_name_middle  examiner_id    examiner_art_unit  uspc_class       
+    ##  Length:255633        Min.   :59025   Min.   :1600      Length:255633     
+    ##  Class :character     1st Qu.:66620   1st Qu.:1711      Class :character  
+    ##  Mode  :character     Median :75606   Median :1777      Mode  :character  
+    ##                       Mean   :78936   Mean   :1955                        
+    ##                       3rd Qu.:93750   3rd Qu.:2184                        
+    ##                       Max.   :99988   Max.   :2498                        
+    ##                                                                           
+    ##  uspc_subclass      patent_number      patent_issue_date   
+    ##  Length:255633      Length:255633      Min.   :2003-03-11  
+    ##  Class :character   Class :character   1st Qu.:2017-01-31  
+    ##  Mode  :character   Mode  :character   Median :2017-03-21  
+    ##                                        Mean   :2015-09-05  
+    ##                                        3rd Qu.:2017-05-02  
+    ##                                        Max.   :2017-06-20  
+    ##                                        NA's   :204389      
+    ##   abandon_date        disposal_type      appl_status_code appl_status_date  
+    ##  Min.   :2006-05-23   Length:255633      Min.   : 17.00   Length:255633     
+    ##  1st Qu.:2016-10-13   Class :character   1st Qu.: 41.00   Class :character  
+    ##  Median :2016-11-28   Mode  :character   Median : 71.00   Mode  :character  
+    ##  Mean   :2016-11-27                      Mean   : 86.48                     
+    ##  3rd Qu.:2017-01-10                      3rd Qu.:150.00                     
+    ##  Max.   :2017-06-05                      Max.   :865.00                     
+    ##  NA's   :237306                                                             
+    ##        tc          gender              race           earliest_date       
+    ##  Min.   :1600   Length:255633      Length:255633      Min.   :2000-01-02  
+    ##  1st Qu.:1700   Class :character   Class :character   1st Qu.:2000-02-26  
+    ##  Median :1700   Mode  :character   Mode  :character   Median :2002-12-09  
+    ##  Mean   :1903                                         Mean   :2003-10-28  
+    ##  3rd Qu.:2100                                         3rd Qu.:2005-12-09  
+    ##  Max.   :2400                                         Max.   :2016-03-03  
+    ##                                                                           
+    ##   latest_date          tenure_days     Date_time         
+    ##  Min.   :2017-01-04   Min.   : 373   Min.   :2017-01-01  
+    ##  1st Qu.:2017-05-19   1st Qu.:4180   1st Qu.:2017-02-24  
+    ##  Median :2017-05-22   Median :5274   Median :2017-03-29  
+    ##  Mean   :2017-05-20   Mean   :4953   Mean   :2017-04-16  
+    ##  3rd Qu.:2017-05-23   3rd Qu.:6292   3rd Qu.:2017-04-28  
+    ##  Max.   :2017-12-06   Max.   :6518   Max.   :9468-10-16  
+    ## 
 
 ``` r
 summary(T_Data)
 ```
 
     ##   examiner_id     filing_date         disposal_type    tc        
-    ##  Min.   :59012   Min.   :2000-01-02   ABN:498337    1600:368721  
-    ##  1st Qu.:66582   1st Qu.:2004-04-02   ISS:866642    1700:529276  
-    ##  Median :75345   Median :2007-11-13                 2100:270837  
-    ##  Mean   :78847   Mean   :2007-10-08                 2400:196145  
-    ##  3rd Qu.:93839   3rd Qu.:2011-05-04                              
+    ##  Min.   :59012   Min.   :2000-01-02   ABN:498002    1600:368721  
+    ##  1st Qu.:66582   1st Qu.:2004-04-02   ISS:865984    1700:528977  
+    ##  Median :75341   Median :2007-11-13                 2100:270143  
+    ##  Mean   :78842   Mean   :2007-10-08                 2400:196145  
+    ##  3rd Qu.:93845   3rd Qu.:2011-05-04                              
     ##  Max.   :99988   Max.   :2016-11-14                              
     ##     gender             race         tenure_days     Date_time         
     ##  female:452865   Asian   :325412   Min.   : 216   Min.   :2000-05-24  
-    ##  male  :912114   black   : 47873   1st Qu.:5180   1st Qu.:2009-06-29  
+    ##  male  :911121   black   : 47873   1st Qu.:5180   1st Qu.:2009-06-29  
     ##                  Hispanic: 38765   Median :6209   Median :2012-07-13  
-    ##                  other   :   993   Mean   :5670   Mean   :2011-11-05  
-    ##                  white   :951936   3rd Qu.:6338   3rd Qu.:2014-12-10  
+    ##                  white   :951936   Mean   :5669   Mean   :2011-11-05  
+    ##                                    3rd Qu.:6338   3rd Qu.:2014-12-10  
     ##                                    Max.   :6518   Max.   :2017-01-01  
     ##  Application_time  filing_year   descision_year   start_data        
     ##  Min.   :  11     Min.   :2000   Min.   :2000   Min.   :2000-05-24  
     ##  1st Qu.: 858     1st Qu.:2004   1st Qu.:2009   1st Qu.:2001-07-19  
-    ##  Median :1213     Median :2007   Median :2012   Median :2004-09-29  
-    ##  Mean   :1489     Mean   :2007   Mean   :2011   Mean   :2005-04-04  
+    ##  Median :1213     Median :2007   Median :2012   Median :2004-09-30  
+    ##  Mean   :1489     Mean   :2007   Mean   :2011   Mean   :2005-04-05  
     ##  3rd Qu.:1786     3rd Qu.:2011   3rd Qu.:2014   3rd Qu.:2008-08-13  
     ##  Max.   :6187     Max.   :2016   Max.   :2017   Max.   :2016-11-29  
     ##  Approx_Tenue_Days
     ##  Min.   :   0     
     ##  1st Qu.:1186     
-    ##  Median :2216     
+    ##  Median :2215     
     ##  Mean   :2405     
-    ##  3rd Qu.:3473     
+    ##  3rd Qu.:3472     
     ##  Max.   :6064
+
+let’s make a quick pie chart to vislize the data
+
+``` r
+PD = T_Data %>%
+  group_by(gender, race) %>%
+  summarise(n = n())
+```
+
+    ## `summarise()` has grouped output by 'gender'. You can override using the
+    ## `.groups` argument.
+
+``` r
+#install.packages('webr')
+
+library(webr)
+PieDonut(PD, aes(gender,race, count=n), title = "Patent Examiners by Race & Gender",r0 = 0.45, r1 = 0.9, addDonutLabel= TRUE )
+```
+
+    ## Warning: The `<scale>` argument of `guides()` cannot be `FALSE`. Use "none" instead as
+    ## of ggplot2 3.3.4.
+    ## ℹ The deprecated feature was likely used in the webr package.
+    ##   Please report the issue at <]8;;https://github.com/cardiomoon/webr/issueshttps://github.com/cardiomoon/webr/issues]8;;>.
+
+![](Group-Assignment_files/figure-gfm/pie%20chart-1.png)<!-- -->
 
 Now lets look at the correlation plots
 
@@ -558,7 +657,13 @@ Pred_Data <- T_Data %>%
     ds = as.POSIXct(min(Date_time)), # I have repeatedly attempted to change this assumption but have been unable to
     y=n(),
     )
+#Check for duplicates. If true then there are no duplicates
+length(unique(Pred_Data$ds)) == nrow(Pred_Data)
+```
 
+    ## [1] TRUE
+
+``` r
 m<-prophet(Pred_Data)
 future <- make_future_dataframe(m, periods = 365)
 tail(future)
@@ -580,12 +685,12 @@ tail(forecast[c('ds', 'yhat', 'yhat_lower', 'yhat_upper')])
 ```
 
     ##                       ds      yhat yhat_lower yhat_upper
-    ## 5821 2017-12-26 19:00:00 1138.8410  791.65822  1493.4931
-    ## 5822 2017-12-27 19:00:00  445.2975   71.81251   790.8908
-    ## 5823 2017-12-28 19:00:00  457.0060  117.46159   815.5938
-    ## 5824 2017-12-29 19:00:00  276.0807  -57.33098   628.1289
-    ## 5825 2017-12-30 19:00:00  226.9363 -115.43376   551.1176
-    ## 5826 2017-12-31 19:00:00  534.7482  171.74237   899.0063
+    ## 5821 2017-12-26 19:00:00 1136.5869  817.74603  1473.2097
+    ## 5822 2017-12-27 19:00:00  443.6840   56.04380   813.0540
+    ## 5823 2017-12-28 19:00:00  455.3918   97.81820   807.5841
+    ## 5824 2017-12-29 19:00:00  274.3422  -88.26362   639.1719
+    ## 5825 2017-12-30 19:00:00  225.2376 -127.66719   586.9678
+    ## 5826 2017-12-31 19:00:00  533.0541  204.22284   876.7144
 
 ``` r
 plot(m, forecast)
@@ -610,10 +715,51 @@ ggplot(forecast, aes(ds, yhat)) +
   scale_color_manual(values = c("blue", "red", "black"), labels = c("Forecast", "Test data"))+
   xlab("Date") +
   ylab("y") +
-  ggtitle("Forecast of number of descisions")
+  ggtitle("Forecast of length of application time")
 ```
 
 ![](Group-Assignment_files/figure-gfm/prophet%20prediction%20plot-1.png)<!-- -->
+Let’s try breaking these out a bit, since there seems to be 3 different
+trends
+
+``` r
+Pred_Data$DOW=wday(Pred_Data$ds,week_start = 1, label=TRUE)
+
+# Plot the prophet forecast with the test data points
+ggplot(forecast, aes(ds, yhat)) +
+  geom_point(data = Pred_Data, aes(ds, y, color = DOW), size = 1,alpha=0.4) +
+  scale_color_brewer(palette = "Set1")+
+  xlab("Date") +
+  ylab("y") +
+  ggtitle("Forecast of length of application time")
+```
+
+![](Group-Assignment_files/figure-gfm/prophet%20prediction%20plot2-1.png)<!-- -->
+
+Let’s try breaking these out a bit, since there seems to be 3 different
+trends
+
+``` r
+Pred_Data_low=App_data <- Pred_Data %>% 
+  filter(y<365)
+Pred_Data_med=App_data <- Pred_Data %>% 
+  filter(y>365 & y<800)
+
+Pred_Data_high=App_data <- Pred_Data %>% 
+  filter(y>800)
+
+# Plot the prophet forecast with the test data points
+ggplot(forecast, aes(ds, yhat)) +
+  geom_point(data = Pred_Data_low, aes(ds, y, color = "low"), size = 2,alpha=0.2) +
+  geom_point(data = Pred_Data_med, aes(ds, y, color = "med"), size = 2,alpha=0.2) +
+  geom_point(data = Pred_Data_high, aes(ds, y, color = "high"), size = 2,alpha=0.2) +
+  scale_color_manual(values = c("blue", "red", "black"), labels = c("high", "low","med"))+
+  xlab("Date") +
+  ylab("y") +
+  ggtitle("Forecast of length of application time")
+```
+
+![](Group-Assignment_files/figure-gfm/prophet%20prediction%20plot3-1.png)<!-- -->
 
 ## Tree model for predictive
 
@@ -702,6 +848,7 @@ T_Data <- T_Data %>%
     status = recode(disposal_type, `ABN` = 0, `ISS` = 1)
   )
 
+
 survfit(Surv(Application_time) ~ 1, data = T_Data) %>% 
   ggsurvfit() +
   labs(
@@ -788,44 +935,41 @@ mylda[4]
 
     ## $scaling
     ##                            LD1           LD2           LD3           LD4
-    ## disposal_typeISS -9.146867e-02  2.0872935997  0.7289554780 -5.964167e-01
-    ## tc1700            1.122643e-02 -0.0637429672  0.0816867328 -1.003531e-01
-    ## tc2100            1.359685e-02 -0.3914804799  1.4545366477  1.244677e+00
-    ## tc2400            2.728631e-02 -0.3494620744  1.6408441743  8.161812e-01
-    ## gendermale        4.227479e-03  0.0212075629 -0.1346891185 -1.733898e-02
-    ## raceblack         3.079500e-03  0.0231509469 -0.1591104258 -1.788255e-01
-    ## raceHispanic     -7.772099e-04  0.0744485951 -0.1983349556 -1.961163e-01
-    ## raceother        -3.501465e-02 -0.3926538622  1.1830165376  2.001270e-01
-    ## racewhite        -4.664602e-03  0.0740105213 -0.1196450678 -7.051124e-02
-    ## tenure_days      -1.360098e-06  0.0002060137 -0.0005098554  2.002177e-05
-    ## descision_year   -2.473120e+00  0.0124715925 -0.1430291886  1.724648e-01
-    ## filing_year       2.473589e+00  0.0886887201 -0.0468115945  4.678465e-02
+    ## disposal_typeISS -9.139768e-02  2.0875076332  0.7281614269 -5.964029e-01
+    ## tc1700            1.122212e-02 -0.0638495316  0.0827894553 -9.934287e-02
+    ## tc2100            1.359300e-02 -0.3909096491  1.4564658416  1.247454e+00
+    ## tc2400            2.729405e-02 -0.3490901480  1.6432091224  8.167722e-01
+    ## gendermale        4.230642e-03  0.0211669457 -0.1349822114 -1.777988e-02
+    ## raceblack         3.079051e-03  0.0231003935 -0.1591787861 -1.778914e-01
+    ## raceHispanic     -8.098515e-04  0.0744722060 -0.1984511755 -1.949934e-01
+    ## racewhite        -4.666667e-03  0.0740425011 -0.1197757916 -6.980783e-02
+    ## tenure_days      -1.372743e-06  0.0002059935 -0.0005105429  2.022426e-05
+    ## descision_year   -2.473098e+00  0.0123957530 -0.1429608093  1.724485e-01
+    ## filing_year       2.473558e+00  0.0886939228 -0.0470010632  4.675906e-02
     ##                            LD5           LD6           LD7           LD8
-    ## disposal_typeISS  0.0164046960 -0.0828798036 -0.2661727062  0.1159391219
-    ## tc1700            1.6409085884  1.5627490695  0.3585502388 -0.5833847720
-    ## tc2100            1.6183246990 -0.2752849907  0.8829496119 -1.1946491458
-    ## tc2400           -0.8301895639  2.1919027392  1.0467098212 -1.0732213508
-    ## gendermale        0.1841681327 -0.1413933817  1.3081680701  1.3618474569
-    ## raceblack        -0.1054328247 -0.4680224450  0.4566965603  0.6128900826
-    ## raceHispanic     -0.0733805963  0.0004726852  1.1177012156 -3.2422176586
-    ## raceother        -2.0324757289 -0.0282474164  3.0959798893 13.7247461458
-    ## racewhite        -0.0253907110  0.1953192183  1.2069886956 -0.7866615410
-    ## tenure_days      -0.0002548702 -0.0001670467  0.0005808717 -0.0004152335
-    ## descision_year    0.0163439644  0.0294037633 -0.0145220701  0.0088754792
-    ## filing_year       0.0047759963 -0.0127649514  0.0267134820 -0.0237711821
-    ##                           LD9          LD10          LD11         LD12
-    ## disposal_typeISS -0.056457854  0.0766471320 -0.0555398623  0.238117016
-    ## tc1700            0.172973349 -0.0636703420  0.4401333015 -0.841951855
-    ## tc2100           -0.009951305  0.4885325711  0.3443880462 -0.925700391
-    ## tc2400            0.058067722  0.1458910591  0.3905576605 -1.054023959
-    ## gendermale       -0.017314610 -0.9069877320 -0.4424454092  0.399951929
-    ## raceblack        -3.986820247 -0.8230861267  3.9190936845 -0.094225873
-    ## raceHispanic      1.193334693 -2.4829176887  2.1986235353  3.908102303
-    ## raceother        20.058730045 16.2428371120 22.3726251925  3.228394862
-    ## racewhite        -1.016869511  1.2944531429  0.3274169230  1.026532185
-    ## tenure_days       0.000237686 -0.0001051973  0.0001221482 -0.000649573
-    ## descision_year   -0.004607788 -0.0021334411  0.0040284423  0.011718486
-    ## filing_year       0.012004546  0.0015392278  0.0082654863 -0.030397681
+    ## disposal_typeISS  0.0166802781 -0.0847100128 -0.2677139310  0.1163360606
+    ## tc1700            1.6399378495  1.5664540137  0.3600985358 -0.6376455539
+    ## tc2100            1.6137567265 -0.2743873104  0.9147247002 -1.1783024245
+    ## tc2400           -0.8360715397  2.1904703642  1.0713398600 -1.0471257949
+    ## gendermale        0.1858349620 -0.1378222838  1.2782306137  1.4527003198
+    ## raceblack        -0.1060142592 -0.4731181636  0.5069198999  1.4936127179
+    ## raceHispanic     -0.0746913103  0.0001177869  1.1852026560 -3.4168286664
+    ## racewhite        -0.0260327009  0.1947275806  1.2429535381 -0.5694920004
+    ## tenure_days      -0.0002541026 -0.0001646978  0.0005866077 -0.0004506496
+    ## descision_year    0.0163044779  0.0295401553 -0.0149234454  0.0090882057
+    ## filing_year       0.0048847187 -0.0125359761  0.0268711815 -0.0266276464
+    ##                            LD9          LD10          LD11
+    ## disposal_typeISS  0.0513445914  0.0860847509  0.2390713885
+    ## tc1700            0.0833429706 -0.3343439233 -0.8591706784
+    ## tc2100            0.5459221324  0.0761605144 -0.9450020752
+    ## tc2400            0.3126736608 -0.1842126029 -1.0672799583
+    ## gendermale       -0.8528072939 -0.2918254744  0.4298659079
+    ## raceblack         3.9500089672 -3.7910604297 -0.1831562880
+    ## raceHispanic     -0.8224579479 -3.2999461388  3.8449115087
+    ## racewhite         1.6723418472  0.5168258404  1.0046629987
+    ## tenure_days      -0.0001412374 -0.0001327943 -0.0006553529
+    ## descision_year    0.0030147682 -0.0047208564  0.0116806758
+    ## filing_year      -0.0021589524 -0.0033643447 -0.0309467681
 
 ``` r
 mylda=lda(Application_time~gender+race,data = T_Data)
@@ -833,12 +977,11 @@ mylda[4]
 ```
 
     ## $scaling
-    ##                     LD1        LD2         LD3         LD4          LD5
-    ## gendermale   -0.9647934 -1.8890264 -0.04912675 -0.16832227  -0.06776579
-    ## raceblack     0.8602127 -0.8759632 -3.36280484  3.63117398  -2.60382441
-    ## raceHispanic  0.6087805  0.2268299 -0.59551907 -3.27588631  -5.28205290
-    ## raceother    -4.6117744  1.4170005 28.35446719 17.71117271 -15.44707064
-    ## racewhite     2.0594032 -0.9739733  0.12618170  0.07396294  -0.65978162
+    ##                     LD1        LD2         LD3        LD4
+    ## gendermale   -0.9833421 -1.8806432  0.09791943 -0.1338755
+    ## raceblack     0.8510301 -0.8640677 -5.20001934 -2.0606157
+    ## raceHispanic  0.6032587  0.2397385  1.64089376 -6.0220964
+    ## racewhite     2.0858843 -0.9914619 -0.08071296 -0.5494954
 
 ``` r
 drop <- c("Application_time","descision_year","filing_year","Date_time","tenure_days","tc","filing_date","disposal_type")
@@ -870,13 +1013,13 @@ MSE=mean(test$sq_error)
 MAE
 ```
 
-    ## [1] 562.345
+    ## [1] 551.344
 
 ``` r
 MSE
 ```
 
-    ## [1] 896196.3
+    ## [1] 885801.8
 
 ``` r
 #partimat(race~Application_time+filing_date, method="lda",data=T_Data)
@@ -893,77 +1036,135 @@ summary(optimal_tree)
     ## Call:
     ## rpart(formula = Application_time ~ gender + race, data = T_Data, 
     ##     control = rpart.control(cp = opt_cp))
-    ##   n= 1364979 
+    ##   n= 1363986 
     ## 
     ##             CP nsplit rel error    xerror        xstd
-    ## 1 2.517560e-05      0 1.0000000 1.0000019 0.001991459
-    ## 2 1.796204e-05      4 0.9998993 0.9999296 0.001990961
-    ## 3 1.165379e-05      5 0.9998813 0.9998978 0.001990966
-    ## 4 1.000000e-05      6 0.9998697 0.9998886 0.001990930
+    ## 1 2.677460e-05      0 1.0000000 1.0000023 0.001992320
+    ## 2 1.797278e-05      3 0.9999197 0.9999293 0.001991761
+    ## 3 1.166076e-05      4 0.9999017 0.9999182 0.001991763
+    ## 4 1.000000e-05      5 0.9998900 0.9999111 0.001991740
     ## 
     ## Variable importance
     ##   race gender 
-    ##     74     26 
+    ##     69     31 
     ## 
-    ## Node number 1: 1364979 observations,    complexity param=2.51756e-05
-    ##   mean=1488.732, MSE=974498 
-    ##   left son=2 (1363986 obs) right son=3 (993 obs)
-    ##   Primary splits:
-    ##       race   splits as  LLLRL, improve=2.042661e-05, (0 missing)
-    ##       gender splits as  LR,    improve=2.287552e-06, (0 missing)
-    ## 
-    ## Node number 2: 1363986 observations,    complexity param=2.51756e-05
+    ## Node number 1: 1363986 observations,    complexity param=2.67746e-05
     ##   mean=1488.612, MSE=974624.6 
-    ##   left son=4 (412050 obs) right son=5 (951936 obs)
+    ##   left son=2 (412050 obs) right son=3 (951936 obs)
     ##   Primary splits:
-    ##       race   splits as  LLL-R, improve=1.869641e-05, (0 missing)
-    ##       gender splits as  LR,    improve=2.036967e-06, (0 missing)
+    ##       race   splits as  LLLR, improve=1.869641e-05, (0 missing)
+    ##       gender splits as  LR,   improve=2.036967e-06, (0 missing)
     ## 
-    ## Node number 3: 993 observations
-    ##   mean=1654.088, MSE=773212.3 
-    ## 
-    ## Node number 4: 412050 observations,    complexity param=2.51756e-05
+    ## Node number 2: 412050 observations,    complexity param=2.67746e-05
     ##   mean=1482.123, MSE=884607.7 
-    ##   left son=8 (264229 obs) right son=9 (147821 obs)
+    ##   left son=4 (264229 obs) right son=5 (147821 obs)
     ##   Primary splits:
-    ##       gender splits as  RL,    improve=5.858999e-05, (0 missing)
-    ##       race   splits as  RLR--, improve=1.806609e-05, (0 missing)
+    ##       gender splits as  RL,   improve=5.858999e-05, (0 missing)
+    ##       race   splits as  RLR-, improve=1.806609e-05, (0 missing)
     ## 
-    ## Node number 5: 951936 observations,    complexity param=1.796204e-05
+    ## Node number 3: 951936 observations,    complexity param=1.797278e-05
     ##   mean=1491.42, MSE=1013563 
-    ##   left son=10 (305044 obs) right son=11 (646892 obs)
+    ##   left son=6 (305044 obs) right son=7 (646892 obs)
     ##   Primary splits:
     ##       gender splits as  LR, improve=2.476305e-05, (0 missing)
     ## 
-    ## Node number 8: 264229 observations,    complexity param=1.165379e-05
+    ## Node number 4: 264229 observations,    complexity param=1.166076e-05
     ##   mean=1476.739, MSE=859190.5 
-    ##   left son=16 (238236 obs) right son=17 (25993 obs)
+    ##   left son=8 (238236 obs) right son=9 (25993 obs)
     ##   Primary splits:
-    ##       race splits as  LLR--, improve=6.828168e-05, (0 missing)
+    ##       race splits as  LLR-, improve=6.828168e-05, (0 missing)
     ## 
-    ## Node number 9: 147821 observations,    complexity param=2.51756e-05
+    ## Node number 5: 147821 observations,    complexity param=2.67746e-05
     ##   mean=1491.749, MSE=929896.2 
-    ##   left son=18 (35222 obs) right son=19 (112599 obs)
+    ##   left son=10 (35222 obs) right son=11 (112599 obs)
     ##   Primary splits:
-    ##       race splits as  RLL--, improve=0.0004406405, (0 missing)
+    ##       race splits as  RLL-, improve=0.0004406405, (0 missing)
     ## 
-    ## Node number 10: 305044 observations
+    ## Node number 6: 305044 observations
     ##   mean=1484.124, MSE=1011452 
     ## 
-    ## Node number 11: 646892 observations
+    ## Node number 7: 646892 observations
     ##   mean=1494.86, MSE=1014521 
     ## 
-    ## Node number 16: 238236 observations
+    ## Node number 8: 238236 observations
     ##   mean=1474.209, MSE=853949.1 
     ## 
-    ## Node number 17: 25993 observations
+    ## Node number 9: 25993 observations
     ##   mean=1499.927, MSE=906633.4 
     ## 
-    ## Node number 18: 35222 observations
+    ## Node number 10: 35222 observations
     ##   mean=1455.556, MSE=962994.9 
     ## 
-    ## Node number 19: 112599 observations
+    ## Node number 11: 112599 observations
     ##   mean=1503.07, MSE=919004.7
+
+## Survival
+
+``` r
+library(survival)
+library(lubridate)
+library(ggsurvfit)
+library(gtsummary)
+library(tidycmprsk)
+
+T_Data_OG<- T_Data_OG %>% 
+  mutate(
+    status = recode(disposal_type, `ABN` = 0, `ISS` = 1)
+  )
+
+T_Data_OG$Application_time <- T_Data_OG$Date_time - T_Data_OG$filing_date
+T_Data_OG$Application_time <- as.numeric(T_Data_OG$Application_time)
+
+survfit(Surv(Application_time) ~ 1, data = T_Data_OG) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Days",
+    y = "Overall survival probability"
+  ) + 
+  add_confidence_interval()+
+  add_risktable()
+```
+
+![](Group-Assignment_files/figure-gfm/survival%20appendix%201-1.png)<!-- -->
+Looking at the gender effect
+
+``` r
+survfit(Surv(Application_time) ~ gender, data = T_Data_OG) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Days",
+    y = "Overall survival probability"
+  ) + 
+  add_confidence_interval()
+```
+
+![](Group-Assignment_files/figure-gfm/survival%20appendix%202-1.png)<!-- -->
+
+looking at the ethnicity effects
+
+``` r
+survfit(Surv(Application_time) ~ race, data = T_Data_OG) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Days",
+    y = "Overall survival probability"
+  ) + 
+  add_confidence_interval()
+```
+
+![](Group-Assignment_files/figure-gfm/survival%20appendix%203-1.png)<!-- -->
+
+``` r
+survfit(Surv(Application_time, status) ~ gender+race, data = T_Data_OG) %>% 
+  ggsurvfit() +
+  labs(
+    x = "Days",
+    y = "Overall survival probability"
+  ) + 
+  add_confidence_interval()
+```
+
+![](Group-Assignment_files/figure-gfm/survival%20appendix%204-1.png)<!-- -->
 
 ## LDA Summary
 
@@ -971,7 +1172,7 @@ summary(optimal_tree)
 #mylda
 ```
 
-## Clustering that did not work
+## Survival
 
 ## Unused Code kept for reference.
 

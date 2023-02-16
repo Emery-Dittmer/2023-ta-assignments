@@ -404,7 +404,6 @@ print(MAPE)
 Lets first clean up the data
 ```{r Gender }
 
-
 fdate="2016-01-01"
 edate="2017-01-01"
 F_Data_Train <- F_Data %>%
