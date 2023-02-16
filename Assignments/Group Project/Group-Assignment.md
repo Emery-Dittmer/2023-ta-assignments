@@ -615,6 +615,20 @@ T_Data %>%
 ![](Group-Assignment_files/figure-gfm/Violin%20plots-1.png)<!-- -->
 
 ``` r
+ggboxplot(T_Data, x= 'race', y='Application_time',color='race',xlab=FALSE,ylab="Application Time (in Days)")+
+  rotate_x_text(45)
+```
+
+![](Group-Assignment_files/figure-gfm/box%20plots2-1.png)<!-- -->
+
+``` r
+ggboxplot(T_Data, x= 'gender', y='Application_time',color='gender',xlab=FALSE,ylab="Application Time (in Days)")+
+  rotate_x_text(45)
+```
+
+![](Group-Assignment_files/figure-gfm/box%20plots3-1.png)<!-- -->
+
+``` r
 ggboxplot(T_Data, x= 'race_gender', y='Application_time',color='race_gender',xlab=FALSE,ylab="Application Time (in Days)")+
   rotate_x_text(45)
 ```
@@ -636,26 +650,62 @@ T_Data = T_Data[,!(names(T_Data) %in% drop)]
 
 ## Average Comparisons
 
-Let’s compare the averages between groups
+Let’s compare the averages between groups. First we will get some
+averages
 
 ``` r
-t=t.test(Application_time ~ gender, data = T_Data, var.equal = FALSE)
-summary(t)
+aggregate(T_Data$Application_time, list(T_Data$gender), FUN=mean) 
 ```
 
-    ##             Length Class  Mode     
-    ## statistic   1      -none- numeric  
-    ## parameter   1      -none- numeric  
-    ## p.value     1      -none- numeric  
-    ## conf.int    2      -none- numeric  
-    ## estimate    2      -none- numeric  
-    ## null.value  1      -none- numeric  
-    ## stderr      1      -none- numeric  
-    ## alternative 1      -none- character
-    ## method      1      -none- character
-    ## data.name   1      -none- character
+    ##   Group.1        x
+    ## 1  female 1486.613
+    ## 2    male 1489.605
 
 ``` r
+aggregate(T_Data$Application_time, list(T_Data$race), FUN=mean) 
+```
+
+    ##    Group.1        x
+    ## 1    Asian 1483.886
+    ## 2    black 1471.097
+    ## 3 Hispanic 1480.946
+    ## 4    white 1491.420
+
+``` r
+aggregate(T_Data$Application_time, list(T_Data$gender,T_Data$race), FUN=mean) 
+```
+
+    ##   Group.1  Group.2        x
+    ## 1  female    Asian 1503.070
+    ## 2    male    Asian 1473.735
+    ## 3  female    black 1463.089
+    ## 4    male    black 1478.169
+    ## 5  female Hispanic 1442.315
+    ## 6    male Hispanic 1499.927
+    ## 7  female    white 1484.124
+    ## 8    male    white 1494.860
+
+Next, we will run some statistical testing on them
+
+``` r
+#similarlity between men and women
+t.test(Application_time ~ gender, data = T_Data, var.equal = FALSE)
+```
+
+    ## 
+    ##  Welch Two Sample t-test
+    ## 
+    ## data:  Application_time by gender
+    ## t = -1.6625, df = 897656, p-value = 0.09642
+    ## alternative hypothesis: true difference in means between group female and group male is not equal to 0
+    ## 95 percent confidence interval:
+    ##  -6.5192064  0.5353911
+    ## sample estimates:
+    ## mean in group female   mean in group male 
+    ##             1486.613             1489.605
+
+``` r
+#similarlity between all means
 t=aov(Application_time ~ race, data = T_Data)
 summary(t)
 ```

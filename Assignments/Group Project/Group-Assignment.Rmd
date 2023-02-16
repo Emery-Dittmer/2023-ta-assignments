@@ -352,10 +352,23 @@ T_Data %>%
 
 
 ```
+```{r box plots2}
+ggboxplot(T_Data, x= 'race', y='Application_time',color='race',xlab=FALSE,ylab="Application Time (in Days)")+
+  rotate_x_text(45)
+```
+
+```{r box plots3}
+ggboxplot(T_Data, x= 'gender', y='Application_time',color='gender',xlab=FALSE,ylab="Application Time (in Days)")+
+  rotate_x_text(45)
+```
+
+
 ```{r box plots}
 ggboxplot(T_Data, x= 'race_gender', y='Application_time',color='race_gender',xlab=FALSE,ylab="Application Time (in Days)")+
   rotate_x_text(45)
 ```
+
+
 
 Based on the graphs we can see a similar pattern for application time, where all tcs have a steadliy decreasing application wait time. However, this is likely a right censoring problem as the applications that are taking longer are not being counted and therefore are filtered out. These applications do not have a status of issued or no. It is interesting to see there is no real discernable pattern between any tcs on the amount of time ofr a patent applcation.
 
@@ -366,14 +379,24 @@ T_Data = T_Data[,!(names(T_Data) %in% drop)]
 
 ## Average Comparisons
 
-Let's compare the averages between groups
+Let's compare the averages between groups. First we will get some averages
 ```{r compare averages 1 }
-t=t.test(Application_time ~ gender, data = T_Data, var.equal = FALSE)
-summary(t)
+aggregate(T_Data$Application_time, list(T_Data$gender), FUN=mean) 
+aggregate(T_Data$Application_time, list(T_Data$race), FUN=mean) 
+aggregate(T_Data$Application_time, list(T_Data$gender,T_Data$race), FUN=mean) 
+
+```
+Next, we will run some statistical testing on them
+```{r compare averages 2 }
+#similarlity between men and women
+t.test(Application_time ~ gender, data = T_Data, var.equal = FALSE)
+#similarlity between all means
 t=aov(Application_time ~ race, data = T_Data)
 summary(t)
+
 t=aov(Application_time ~ race+gender, data = T_Data)
 summary(t)
+
 ```
 
 
